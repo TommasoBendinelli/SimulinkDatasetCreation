@@ -46,9 +46,9 @@ def get_time_series(res: Dict, assuming_all_scalar: bool = True) -> pd.DataFrame
     df.index.name = "time_s"
     return df
 
-def generate_random_healthy_variables() -> Dict:
+def generate_random_variables(root_cause=None) -> Dict:
     # Use int() to ensure pure Python scalars (MATLAB Engine is picky)
-    return {
+    res = {
         "u_set_point": float(int(np.random.randint(18, 24))),                 # [°C]
         "u_external_temperature": float(int(np.random.randint(-10, 40))),     # [°C]
         "u_recycling_air_bool": int(np.random.randint(0, 2)),                 # 0 or 1
@@ -57,6 +57,12 @@ def generate_random_healthy_variables() -> Dict:
         "param_power_per_occupants": int(np.random.randint(50, 150)),
         "param_first_order_inertia": float(1.0 / int(np.random.randint(2500, 5000))),
     }
+
+    if root_cause is not None:
+        if root_cause == "efficiency":
+            res["error_efficiency"] = 0.001 # np.random.uniform(0,0.1)
+
+    return res 
 
 def new_run_dir(root: Path = "runs", system_name="entry"):
     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -96,6 +102,40 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
         "metadata": str(meta_path),
     }
 
+
+def generate_data(mle, root_cause=None):
+    # Inputs
+    tunable_params = generate_random_variables(root_cause=root_cause)
+    stop_time = 10 # seconds
+
+    # Run simulation (adapt function name/args to your setup)
+    res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params)
+
+    # Convert MATLAB results to DataFrame
+    df = get_time_series(res, assuming_all_scalar=True)
+    # Prepare metadata describing the run (super handy for digging later)
+    metadata = {
+        "model": "the_model",
+        "stop_time_s": stop_time,
+        "n_rows": int(df.shape[0]),
+        "n_signals": int(df.shape[1]) if not df.empty else 0,
+        "time_start_s": float(df.index.min()) if not df.empty else None,
+        "time_end_s": float(df.index.max()) if not df.empty else None,
+        "columns": list(df.columns) if not df.empty else [],
+        "tunable_parameters": tunable_params,
+        "env": {
+            "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+            "pandas": pd.__version__,
+            "matplotlib": plt.matplotlib.__version__,
+            # Add MATLAB release if you like:
+            # "matlab_release": str(mle.version(nargout=1))
+        },
+        "root_cause": root_cause
+    }
+    return df, metadata
+
+   
+        
 # ---------- main ----------
 def main():
     # Optional: make runs reproducible; comment this out if you want pure randomness
@@ -106,35 +146,25 @@ def main():
     # Start MATLAB engine
     mle = matlab.engine.start_matlab()
 
-    for i in range(10):
-        # Inputs
-        tunable_params = generate_random_healthy_variables()
-        stop_time = 1000  # seconds
+    # #
 
-        # Run simulation (adapt function name/args to your setup)
-        res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params)
 
-        # Convert MATLAB results to DataFrame
-        df = get_time_series(res, assuming_all_scalar=True)
+    
+    # root_cause = "efficiency"
+    # for i in range(10):
+    #     df, metadata= generate_data(mle,root_cause=root_cause)
 
-        # Prepare metadata describing the run (super handy for digging later)
-        metadata = {
-            "model": "the_model",
-            "stop_time_s": stop_time,
-            "n_rows": int(df.shape[0]),
-            "n_signals": int(df.shape[1]) if not df.empty else 0,
-            "time_start_s": float(df.index.min()) if not df.empty else None,
-            "time_end_s": float(df.index.max()) if not df.empty else None,
-            "columns": list(df.columns) if not df.empty else [],
-            "tunable_parameters": tunable_params,
-            "env": {
-                "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
-                "pandas": pd.__version__,
-                "matplotlib": plt.matplotlib.__version__,
-                # Add MATLAB release if you like:
-                # "matlab_release": str(mle.version(nargout=1))
-            },
-        }
+    #     # Save everything under a timestamped run folder
+    #     run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name)
+    #     paths = save_artifacts(run_dir, df, metadata)
+
+    #     print("Saved artifacts:")
+    #     for k, v in paths.items():
+    #         print(f" - {k}: {v}")
+
+    root_cause = None
+    for i in range(1):
+        df, metadata= generate_data(mle,root_cause=root_cause)
 
         # Save everything under a timestamped run folder
         run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name)
