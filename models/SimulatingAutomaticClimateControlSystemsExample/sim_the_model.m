@@ -62,18 +62,18 @@ end
     %%             1.0  0.0  1.0  1.0  1.0  0.0  0.0  1.0];
     
     % Example with 50,001 samples
-    u1 = 23 * ones(1, 50001);   % row vector of all 23
-    u2 = 28 * ones(1, 50001);   % row vector of all 28
-    ExternalInput = {
-            'Input Set Temperature', u1;
-            'Input External Temperature', u2;
-            'Error Efficiency', u1;
-        };
+    % u1 = 23 * ones(1, 50001);   % row vector of all 23
+    % u2 = 28 * ones(1, 50001);   % row vector of all 28
+    % ExternalInput = {
+    %        'Input Set Temperature', u1;
+    %        'Input External Temperature', u2;
+    %        'Error Efficiency', u1;
+    %    };
 
    
     %% disp(args.ExternalInput)
-    %% ExternalInput = args.ExternalInput;
-
+    ExternalInput = args.ExternalInput;
+    disp(ExternalInput);
     %% Load the external input into the SimulationInput object
     if ~isempty(ExternalInput)
         % In the model, the external input u is a discrete signal with sample
@@ -92,22 +92,23 @@ end
         extData = cell(numel(names),1);
         
         for i = 1:numel(names)
-            key = names{i};                          % the i-th Inport name (model order)
+            key = names{i};      
+            disp(key); % the i-th Inport name (model order)
+            disp(strcmp(ExternalInput(:,1), key));
             idx = find(strcmp(ExternalInput(:,1), key), 1);
-            if isempty(idx)
+            if numel(idx)
                 error('Missing ExternalInput for Inport: %s', key);
             end
-            vals = ExternalInput{idx,2}(:);          % column vector
-            extData{i} = struct( ...
-                'time', [], ...
-                'signals', struct('values', vals, 'dimensions', 1) );
+            vals = ExternalInput.(key);
+            % vals = ExternalInput{idx,2}(:);          % column vector
+            extData{i} = vals; %%%
+            % struct( ...
+                % 'time', [], ...
+                % 'signals', struct('values', vals, 'dimensions', 1) );
         end
         
         % Extract the signals (second column of ExternalInput)
-        signalMatrix = cell2mat(ExternalInput(:,2));   % gives [50001 x 3] because cell2mat stacks column-wise
-        
-        
-            
+        signalMatrix = cell2mat(extData);   % gives [50001 x 3] because cell2mat stacks column-wise
         N = size(signalMatrix, 2);   % number of samples
         nSignals = size(signalMatrix, 1);  % number of Inports/signals
      

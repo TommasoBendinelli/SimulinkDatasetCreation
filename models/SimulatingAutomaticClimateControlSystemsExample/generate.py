@@ -103,43 +103,58 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
     }
 
 
-def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None):
-    # Number of points
-    n_points = int(stop_time / uST) + 1  # include t=0
-    
-    # Time vector
-    t = np.linspace(0, stop_time, n_points)
+def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_seed=None):
+    if uST is None or stop_time is None:
+        raise ValueError("uST and stop_time must be provided.")
+    if uST <= 0 or stop_time <= 0:
+        raise ValueError("uST and stop_time must be positive.")
+
+    # Number of points (include t=0 and t=stop_time)
+    n_points = int(stop_time / uST) + 1
+    t = np.linspace(0.0, stop_time, n_points)
 
     # u1: step signal, 23 in first half, 21 in second half
     half_time = len(t) // 2
     t_half = t[half_time]
-    u1 = np.where(t > t_half, 21, 23)
+    u1 = np.where(t > t_half, 21.0, 23.0)
 
     # u2: triangular profile (28 → 35 → 27)
     third = n_points // 3
-
-    # First third: flat 28
-    u2_first = np.full(third, 28.0)
-
-    # Second third: linear increase 28 → 35
-    u2_second = np.linspace(28, 35, third, endpoint=False)
-
-    # Last third: linear decrease 35 → 27
-    u2_third = np.linspace(35, 27, n_points - 2*third)
-
-    # Concatenate
+    u2_first  = np.full(third, 28.0)
+    u2_second = np.linspace(28.0, 35.0, third, endpoint=False)
+    u2_third  = np.linspace(35.0, 27.0, n_points - 2 * third)
     u2 = np.concatenate([u2_first, u2_second, u2_third])
 
-    # Put everything into a dict
+    # Error Efficiency: 0.86 → 0.05 over ~10 s at a random onset time
+    rng = np.random.default_rng(rng_seed)
+    start_val = 0.86
+    end_val = 0.05
+    desired_drop_seconds = 10.0
+    drop_seconds = min(desired_drop_seconds, max(uST, stop_time))  # guard if stop_time < 10 s
+
+    # Number of samples in the drop (at least 2 to form a slope)
+    drop_len = max(2, int(round(drop_seconds / uST)))
+    latest_start_idx = max(0, n_points - drop_len)
+    drop_start_idx = int(rng.integers(0, latest_start_idx + 1))  # inclusive of latest_start_idx
+    drop_end_idx = min(n_points - 1, drop_start_idx + drop_len - 1)
+
+    efficiency = np.full(n_points, start_val, dtype=float)
+    # Linear ramp from start_val to end_val
+    ramp = np.linspace(start_val, end_val, drop_end_idx - drop_start_idx + 1)
+    efficiency[drop_start_idx:drop_end_idx + 1] = ramp
+    # After ramp, hold at end_val
+    if drop_end_idx + 1 < n_points:
+        efficiency[drop_end_idx + 1:] = end_val
+
+    # Pack into dict
     signals = {
-        "u1": u1.tolist(),
-        "u2": u2.tolist()
+        "InputSetTemperature": u1.tolist(),
+        "InputExternalTemperature": u2.tolist(),
+        "ErrorEfficiency": efficiency.tolist(),
     }
 
-    # If you still want MATLAB-friendly version:
-    matlab_signals = {k: matlab.double(np.atleast_2d(v).tolist()) 
-                      for k, v in signals.items()}
-
+    # MATLAB-friendly version
+    matlab_signals = {k: matlab.double(np.atleast_2d(v).tolist()) for k, v in signals.items()}
     return matlab_signals
 
 
@@ -148,7 +163,6 @@ def generate_data(mle, root_cause=None, uST=None,  stop_time = 10):
 
     tunable_params = generate_tunable_parameters(root_cause=root_cause)
     externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time)
-    
     res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput)
 
     # Convert MATLAB results to DataFrame
