@@ -22,14 +22,26 @@ function res = sim_the_model(args)
 arguments
     args.StopTime (1,1) double = nan
     args.TunableParameters = []
-    args.ExternalInput (:,:) {mustBeNumericOrLogical} = []
+    args.ExternalInput = []   % map key/value
     args.ConfigureForDeployment (1,1) {mustBeNumericOrLogical} = true
     args.OutputFcn (1,1)  {mustBeFunctionHandle} = @emptyFunction
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
 end
+    % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
+    model_name = 'simulink_model';              % base name (no .slx)
+    mdlfile = which([model_name '.slx']);
+    if isempty(mdlfile)
+        error("sim_the_model:ModelNotFound", ...
+            "Could not find %s.slx on the MATLAB path. Current folder: %s", ...
+            model_name, pwd);
+    end
 
-    %% Create the SimulationInput object
-    si = Simulink.SimulationInput('simulink_model.slx');
+    if ~bdIsLoaded(model_name)
+        load_system(model_name);
+    end
+
+    si = Simulink.SimulationInput(model_name);
+    
     
     %% Load the StopTime into the SimulationInput object
     if ~isnan(args.StopTime)
@@ -46,10 +58,22 @@ end
         end
     end
     
-    %% ExternalInput = [0.0  2.0  0.0  0.0  0.0 -2.0 -2.0  0.0;
-    %%              1.0  0.0  1.0  1.0  1.0  0.0  0.0  1.0];
+    %%ExternalInput = [0.0  2.0  0.0  0.0  0.0 -2.0 -2.0  0.0;
+    %%             1.0  0.0  1.0  1.0  1.0  0.0  0.0  1.0];
+    
+    % Example with 50,001 samples
+    u1 = 23 * ones(1, 50001);   % row vector of all 23
+    u2 = 28 * ones(1, 50001);   % row vector of all 28
+    ExternalInput = {
+            'Input Set Temperature', u1;
+            'Input External Temperature', u2;
+            'Error Efficiency', u1;
+        };
 
-    ExternalInput = args.ExternalInput;
+   
+    %% disp(args.ExternalInput)
+    %% ExternalInput = args.ExternalInput;
+
     %% Load the external input into the SimulationInput object
     if ~isempty(ExternalInput)
         % In the model, the external input u is a discrete signal with sample
@@ -59,14 +83,39 @@ end
         % described in Guy's blog post:
         % https://blogs.mathworks.com/simulink/2012/02/09/using-discrete-data-as-an-input-to-your-simulink-model/
         
-        N = size(ExternalInput, 2);   % number of samples
-        nSignals = size(ExternalInput, 1);  % number of Inports/signals
+        % Find all Inport blocks
+        inports = find_system(model_name, 'BlockType', 'Inport');
+        top_inports = inports( cellfun(@(x) count(x,'/')==1, inports) );
+        names = cellfun(@(x) extractAfter(x, '/'), top_inports, 'UniformOutput', false);
+        
+        % Check that the names matchex the names of ExternalInput
+        extData = cell(numel(names),1);
+        
+        for i = 1:numel(names)
+            key = names{i};                          % the i-th Inport name (model order)
+            idx = find(strcmp(ExternalInput(:,1), key), 1);
+            if isempty(idx)
+                error('Missing ExternalInput for Inport: %s', key);
+            end
+            vals = ExternalInput{idx,2}(:);          % column vector
+            extData{i} = struct( ...
+                'time', [], ...
+                'signals', struct('values', vals, 'dimensions', 1) );
+        end
+        
+        % Extract the signals (second column of ExternalInput)
+        signalMatrix = cell2mat(ExternalInput(:,2));   % gives [50001 x 3] because cell2mat stacks column-wise
+        
+        
+            
+        N = size(signalMatrix, 2);   % number of samples
+        nSignals = size(signalMatrix, 1);  % number of Inports/signals
      
         uStruct.time = [];
         uStruct.signals.dimensions = 2;
         % values needs to be column vector
         for k = 1:nSignals
-            uStruct.signals(k).values     = ExternalInput(k, :).';  % N×1
+            uStruct.signals(k).values     = signalMatrix(k, :).';  % N×1
             uStruct.signals(k).dimensions = 1;                      % scalar input
         end
 

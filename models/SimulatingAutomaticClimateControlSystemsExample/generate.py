@@ -130,11 +130,17 @@ def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None):
     # Concatenate
     u2 = np.concatenate([u2_first, u2_second, u2_third])
 
-    # Combine signals with time
-    u_final = np.column_stack([u1, u2]).T
-    externalInput = matlab.double(u_final.tolist())
-    
-    return externalInput
+    # Put everything into a dict
+    signals = {
+        "u1": u1.tolist(),
+        "u2": u2.tolist()
+    }
+
+    # If you still want MATLAB-friendly version:
+    matlab_signals = {k: matlab.double(np.atleast_2d(v).tolist()) 
+                      for k, v in signals.items()}
+
+    return matlab_signals
 
 
 def generate_data(mle, root_cause=None, uST=None,  stop_time = 10):
@@ -176,7 +182,7 @@ def main():
     np.random.seed(None)  # or set an int seed
     current_path = os.getcwd()
     os.chdir(Path(__file__).parent)
-
+    print(f"Changed directory to : {Path(__file__).parent}")
     # Start MATLAB engine
     mle = matlab.engine.start_matlab()
     uST = 0.01 
