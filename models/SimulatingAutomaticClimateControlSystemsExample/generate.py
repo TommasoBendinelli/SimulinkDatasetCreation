@@ -46,11 +46,11 @@ def get_time_series(res: Dict, assuming_all_scalar: bool = True) -> pd.DataFrame
     df.index.name = "time_s"
     return df
 
-def generate_random_variables(root_cause=None) -> Dict:
+def generate_tunable_parameters(root_cause=None) -> Dict:
     # Use int() to ensure pure Python scalars (MATLAB Engine is picky)
     res = {
-        "u_set_point": float(int(np.random.randint(18, 24))),                 # [°C]
-        "u_external_temperature": float(int(np.random.randint(-10, 40))),     # [°C]
+        # "u_set_point": [float(int(np.random.randint(18, 24)))]*100,                 # [°C]
+        # "u_external_temperature": float(int(np.random.randint(-10, 40))),     # [°C]
         "u_recycling_air_bool": int(np.random.randint(0, 2)),                 # 0 or 1
         "u_engine_speed_int": int(np.random.randint(1500, 2500)),             # [rpm]
         "u_torque_compensation": int(np.random.randint(20, 30)),
@@ -103,13 +103,47 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
     }
 
 
-def generate_data(mle, root_cause=None):
-    # Inputs
-    tunable_params = generate_random_variables(root_cause=root_cause)
-    stop_time = 10 # seconds
+def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None):
+    # Number of points
+    n_points = int(stop_time / uST) + 1  # include t=0
+    
+    # Time vector
+    t = np.linspace(0, stop_time, n_points)
 
-    # Run simulation (adapt function name/args to your setup)
-    res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params)
+    # u1: step signal, 23 in first half, 21 in second half
+    half_time = len(t) // 2
+    t_half = t[half_time]
+    u1 = np.where(t > t_half, 21, 23)
+
+    # u2: triangular profile (28 → 35 → 27)
+    third = n_points // 3
+
+    # First third: flat 28
+    u2_first = np.full(third, 28.0)
+
+    # Second third: linear increase 28 → 35
+    u2_second = np.linspace(28, 35, third, endpoint=False)
+
+    # Last third: linear decrease 35 → 27
+    u2_third = np.linspace(35, 27, n_points - 2*third)
+
+    # Concatenate
+    u2 = np.concatenate([u2_first, u2_second, u2_third])
+
+    # Combine signals with time
+    u_final = np.column_stack([u1, u2]).T
+    externalInput = matlab.double(u_final.tolist())
+    
+    return externalInput
+
+
+def generate_data(mle, root_cause=None, uST=None,  stop_time = 10):
+    # Inputs
+
+    tunable_params = generate_tunable_parameters(root_cause=root_cause)
+    externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time)
+    
+    res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput)
 
     # Convert MATLAB results to DataFrame
     df = get_time_series(res, assuming_all_scalar=True)
@@ -145,26 +179,13 @@ def main():
 
     # Start MATLAB engine
     mle = matlab.engine.start_matlab()
-
-    # #
-
-
-    
-    # root_cause = "efficiency"
-    # for i in range(10):
-    #     df, metadata= generate_data(mle,root_cause=root_cause)
-
-    #     # Save everything under a timestamped run folder
-    #     run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name)
-    #     paths = save_artifacts(run_dir, df, metadata)
-
-    #     print("Saved artifacts:")
-    #     for k, v in paths.items():
-    #         print(f" - {k}: {v}")
+    uST = 0.01 
+    mle.eval(f"uST = {uST};", nargout=0)   
 
     root_cause = None
+    stop_time = 500
     for i in range(1):
-        df, metadata= generate_data(mle,root_cause=root_cause)
+        df, metadata= generate_data(mle,root_cause=root_cause, uST=uST, stop_time=stop_time)
 
         # Save everything under a timestamped run folder
         run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name)
