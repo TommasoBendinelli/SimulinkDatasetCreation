@@ -17,16 +17,22 @@ function res = sim_the_model(args)
 % Outputs:
 %    res: A structure with the time and data values of the logged signals.
 
-% By: Murali Yeddanapudi, 20-Feb-2022
+% By: Tommaso Bendinelli 11-Sep-2025, heavily based on code from Murali Yeddanapudi, 20-Feb-2022
 
 arguments
+    args.uST (1,1) double = 0.1
     args.StopTime (1,1) double = nan
     args.TunableParameters = []
     args.ExternalInput = []   % map key/value
     args.ConfigureForDeployment (1,1) {mustBeNumericOrLogical} = true
     args.OutputFcn (1,1)  {mustBeFunctionHandle} = @emptyFunction
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
+    args.DiagramDataPath (1,1) string = "."   % <-- NEW: path argument
 end
+    import mlreportgen.report.*
+    import slreportgen.report.*
+    import slreportgen.finder.*
+
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
     model_name = 'simulink_model';              % base name (no .slx)
     mdlfile = which([model_name '.slx']);
@@ -39,9 +45,41 @@ end
     if ~bdIsLoaded(model_name)
         load_system(model_name);
     end
-
     si = Simulink.SimulationInput(model_name);
+    si = si.setVariable('uST', args.uST);
+    % Find all subsystems in the model (excluding library-linked ones)
+    set(gcf,'PaperType','A4')
+    subs = find_system(model_name, ...
+    'LookUnderMasks','all', ...
+    'FollowLinks','off', ...
+    'BlockType','SubSystem');
+    subs = [model_name; subs];
+    % Optional: set page layout for the model prints
+    set_param(model_name, 'PaperOrientation','landscape');  % 'portrait' or 'landscape'
+    set_param(model_name, 'PaperPositionMode','auto');
     
+    for k = 1:numel(subs)
+        s = subs{k};
+
+        % Skip library-linked subsystems if any slipped through
+        % if ~strcmp(get_param(s,'LinkStatus'),'none'); continue; end
+
+        % Make a safe filename that reflects the full path
+        safeName = regexprep(s, '[^a-zA-Z0-9_-]', '_');  % replace / spaces etc.
+        pngPath  = fullfile(args.DiagramDataPath, [safeName '.png']);
+
+        % Print the subsystem diagram to PNG
+        % Note: pass the system path via -s<path>
+        try
+            print(['-s' s], '-dpng', pngPath);
+            fprintf('Saved: %s\n', pngPath);
+        catch ME
+            warning('Could not print %s: %s', s, ME.message);
+        end
+    end
+    
+    report_generator_Path = fullfile(args.DiagramDataPath, "_SystemIO_Report.pdf");
+    rpt = slreportgen.report.Report(report_generator_Path);
     
     %% Load the StopTime into the SimulationInput object
     if ~isnan(args.StopTime)
@@ -222,97 +260,6 @@ function mustBeFunctionHandle(fh)
 end
 
 
-function ext = makeExternalInputAuto(modelName, varargin)
-% MAKEEXTERNALINPUTAUTO  Build Simulink ExternalInput matching root-level inputs.
-% Usage:
-%   ext = makeExternalInputAuto('myModel', u, v, trig, ...);
-%   si = Simulink.SimulationInput(modelName);
-%   si.ExternalInput = ext;
-
-    %--- 1) Discover root-level Inports, Triggers, Enables -----------------
-    open_system(modelName);                % no-op if already open
-    inports = find_system(modelName, 'SearchDepth', 1, 'BlockType', 'Inport');
-
-    subs    = find_system(modelName, 'SearchDepth', 1, 'BlockType', 'SubSystem');
-    nTrig = 0; nEn = 0;
-    for i = 1:numel(subs)
-        % count Trigger/Enable *inside* subsystems that are at root level
-        nTrig = nTrig + numel(find_system(subs{i}, 'SearchDepth', 1, 'BlockType', 'TriggerPort'));
-        nEn   = nEn   + numel(find_system(subs{i}, 'SearchDepth', 1, 'BlockType', 'EnablePort'));
-    end
-    nIn  = numel(inports);
-    nReq = nIn + nTrig + nEn;
-
-    %--- 2) Normalize user-provided arrays to N×D (rows=time, cols=channels)
-    data = varargin;
-    Ksupplied = numel(data);
-    for k = 1:Ksupplied
-        x = data{k};
-        assert(isnumeric(x) && ~isempty(x), 'Input %d must be a numeric array.', k);
-        if isrow(x), x = x.'; end
-        if size(x,1) < size(x,2), x = x.'; end  % D×N -> N×D
-        data{k} = x;
-    end
-
-    % If nothing supplied but model expects inputs, create a single N=1 baseline
-    if Ksupplied == 0 && nReq > 0
-        data = {0}; Ksupplied = 1;
-    end
-
-    % Choose a reference N for auto-generated signals (first input if exists)
-    Nref = size(data{1}, 1);
-
-    %--- 3) If fewer arrays than required, append defaults for Trigger/Enable
-    % Determine how many of the required are "special" (trig/en)
-    % We’ll append in this order: user data -> missing Enables -> missing Triggers
-    % (order must match block order: Inports first, then subsystems’ ports; this
-    % heuristic works for most models; adjust if your model orders them differently.)
-    nMissing = max(0, nReq - Ksupplied);
-    nAddEn = min(nMissing, nEn);
-    nAddTrig = nMissing - nAddEn;
-
-    for i = 1:nAddEn
-        data{end+1} = ones(Nref,1);   % Enable held high
-    end
-    for i = 1:nAddTrig
-        trig = [0; ones(max(Nref-1,0),1)];  % rising edge at first step
-        data{end+1} = trig;
-    end
-
-    % Warn if oversupplied
-    if Ksupplied > nReq
-        warning('Provided %d inputs but model requires %d. Extra inputs will be included; Simulink may error if they do not map to root ports.', Ksupplied, nReq);
-    end
-
-    %--- 4) Build ExternalInput (single struct if same N, else struct array)
-    N = cellfun(@(x) size(x,1), data);
-    D = cellfun(@(x) size(x,2), data);
-    sameN = all(N == N(1));
-
-    if sameN
-        ext.time = [];
-        for i = 1:numel(data)
-            ext.signals(i).values     = data{i}; %#ok<*AGROW>
-            ext.signals(i).dimensions = D(i);
-        end
-    else
-        % different lengths/rates -> struct array
-        template.time = [];
-        template.signals.values = [];
-        template.signals.dimensions = [];
-        ext = repmat(template, 1, numel(data));
-        for i = 1:numel(data)
-            ext(i).time = [];
-            ext(i).signals.values     = data{i};
-            ext(i).signals.dimensions = D(i);
-        end
-    end
-
-    %--- 5) Sanity report
-    fprintf('[%s] Root inputs required: Inport=%d, Trigger=%d, Enable=%d (total=%d)\n', ...
-            modelName, nIn, nTrig, nEn, nReq);
-    fprintf('Built ExternalInput with %d signal(s). SameN=%d\n', numel(data), sameN);
-end
 
 
 function emptyFunction

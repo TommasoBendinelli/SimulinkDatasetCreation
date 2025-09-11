@@ -64,11 +64,12 @@ def generate_tunable_parameters(root_cause=None) -> Dict:
 
     return res 
 
-def new_run_dir(root: Path = "runs", system_name="entry"):
+def new_run_dir(root: Path = "runs", system_name="entry", diagram_subdir="diagram"):
     ts = time.strftime("%Y%m%d_%H%M%S")
     sid = str(uuid.uuid4())[:8]
     run_dir = root / system_name / f"{ts}__{sid}"
     run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / diagram_subdir).mkdir(parents=True,exist_ok=False)
     return run_dir
 
 def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols: int = 6):
@@ -158,12 +159,12 @@ def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_
     return matlab_signals
 
 
-def generate_data(mle, root_cause=None, uST=None,  stop_time = 10):
+def generate_data(mle, root_cause=None, uST=None,  stop_time = 10, diagram_dir=None):
     # Inputs
 
     tunable_params = generate_tunable_parameters(root_cause=root_cause)
     externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time)
-    res = mle.sim_the_model("StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput)
+    res = mle.sim_the_model("uST",uST, "StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput, "DiagramDataPath", str(diagram_dir))
 
     # Convert MATLAB results to DataFrame
     df = get_time_series(res, assuming_all_scalar=True)
@@ -200,15 +201,17 @@ def main():
     # Start MATLAB engine
     mle = matlab.engine.start_matlab()
     uST = 0.01 
-    mle.eval(f"uST = {uST};", nargout=0)   
+
 
     root_cause = None
     stop_time = 500
     for i in range(1):
-        df, metadata= generate_data(mle,root_cause=root_cause, uST=uST, stop_time=stop_time)
-
         # Save everything under a timestamped run folder
-        run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name)
+        run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name, diagram_subdir= "diagram")
+
+        df, metadata= generate_data(mle,root_cause=root_cause, uST=uST, stop_time=stop_time, diagram_dir=run_dir / "diagram")
+
+        
         paths = save_artifacts(run_dir, df, metadata)
 
         print("Saved artifacts:")
