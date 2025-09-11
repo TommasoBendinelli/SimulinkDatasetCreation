@@ -29,13 +29,11 @@ arguments
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
     args.DiagramDataPath (1,1) string = "."   % <-- NEW: path argument
 end
-    import mlreportgen.report.*
-    import slreportgen.report.*
-    import slreportgen.finder.*
-
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
     model_name = 'simulink_model';              % base name (no .slx)
     mdlfile = which([model_name '.slx']);
+    uST = args.uST;        % capture sample time for use in callback
+
     if isempty(mdlfile)
         error("sim_the_model:ModelNotFound", ...
             "Could not find %s.slx on the MATLAB path. Current folder: %s", ...
@@ -47,6 +45,12 @@ end
     end
     si = Simulink.SimulationInput(model_name);
     si = si.setVariable('uST', args.uST);
+    si = si.setVariable('efficiency', 0.86);
+    % register the post-step callback
+    if ~isequal(args.OutputFcn, @emptyFunction) || true        % you want locPostStepFcn
+        si = simulink.compiler.setPostStepFcn( ...
+                si, @locPostStepFcn, 'Decimation', args.OutputFcnDecimation);  % <-- add
+    end
     % Find all subsystems in the model (excluding library-linked ones)
     set(gcf,'PaperType','A4')
     subs = find_system(model_name, ...
@@ -58,6 +62,8 @@ end
     set_param(model_name, 'PaperOrientation','landscape');  % 'portrait' or 'landscape'
     set_param(model_name, 'PaperPositionMode','auto');
     
+    
+
     for k = 1:numel(subs)
         s = subs{k};
 
@@ -77,9 +83,7 @@ end
             warning('Could not print %s: %s', s, ME.message);
         end
     end
-    
-    report_generator_Path = fullfile(args.DiagramDataPath, "_SystemIO_Report.pdf");
-    rpt = slreportgen.report.Report(report_generator_Path);
+   
     
     %% Load the StopTime into the SimulationInput object
     if ~isnan(args.StopTime)
@@ -165,18 +169,21 @@ end
     %% OutputFcn
     prevSimTime = nan;
     function locPostStepFcn(simTime)
-        so = simulink.compiler.getSimulationOutput('the_model');
-        res = extractResults(so, prevSimTime);
-        stopRequested = feval(args.OutputFcn, simTime, res);
-        if stopRequested
-            simulink.compiler.stopSimulation('the_model');
+        % Example: ramp a Gain block value while running
+        if simTime == 5
+            % disp('ok')
+            si = si.setVariable('efficiency', 0.2);
+            %set_param('simulink_model/AC Control/Efficiency','Gain',max(0.1,0.86-0.01*simTime/uST));
         end
+    
+        % so  = simulink.compiler.getSimulationOutput('the_model');
+        % res = extractResults(so, prevSimTime);
+        % stopRequested = feval(args.OutputFcn, simTime, res);
+        %if stopRequested
+        %    simulink.compiler.stopSimulation('the_model');
+        % end
         prevSimTime = simTime;
-    end
-    if ~isequal(args.OutputFcn, @emptyFunction)
-        si = simulink.compiler.setPostStepFcn(si, @locPostStepFcn, ...
-            'Decimation', args.OutputFcnDecimation);
-    end
+        end
     
     %% call sim
     so = sim(si);
