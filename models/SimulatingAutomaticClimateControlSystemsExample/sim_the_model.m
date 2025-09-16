@@ -24,6 +24,7 @@ arguments
     args.StopTime (1,1) double = nan
     args.TunableParameters = []
     args.ExternalInput = []   % map key/value
+    args.TimeVaryingParameters = []
     args.ConfigureForDeployment (1,1) {mustBeNumericOrLogical} = true
     args.OutputFcn (1,1)  {mustBeFunctionHandle} = @emptyFunction
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
@@ -32,7 +33,6 @@ end
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
     model_name = 'simulink_model';              % base name (no .slx)
     mdlfile = which([model_name '.slx']);
-    uST = args.uST;        % capture sample time for use in callback
 
     if isempty(mdlfile)
         error("sim_the_model:ModelNotFound", ...
@@ -45,7 +45,34 @@ end
     end
     si = Simulink.SimulationInput(model_name);
     si = si.setVariable('uST', args.uST);
-    si = si.setVariable('efficiency', 0.86);
+
+    % Go through each Time Varying Parameter and set the first value
+    % Time-varying parameters: seed each with its first value
+    % Expected schema: args.TimeVaryingParameters(k).identifier, .values
+
+
+    % Build struct
+    args.TimeVaryingParameters = struct( ...
+        'identifier', {{'simulink_model/AC_Control/Efficiency'}}, ...
+        'value',      {{efficiency}} );
+        disp(args.TimeVaryingParameters)
+        
+    % args.TimeVaryingParameters = 0.86 * ones(1, 50001);
+    for k = 1:numel(args.TimeVaryingParameters)
+        identifier = args.TimeVaryingParameters.identifier{k};  % cell array
+        value      = args.TimeVaryingParameters.value{k};       % cell array
+    
+        % Unwrap cells
+        if iscell(identifier), identifier = identifier{1}; end
+        if iscell(value),      value      = value{1};      end
+    
+        % Use the first value to seed
+        set_param(identifier, 'Gain', num2str(value(1)));
+    end
+     
+
+
+    % si = si.setVariable('Efficiency', 0.86);
     % register the post-step callback
     if ~isequal(args.OutputFcn, @emptyFunction) || true        % you want locPostStepFcn
         si = simulink.compiler.setPostStepFcn( ...
@@ -63,7 +90,7 @@ end
     set_param(model_name, 'PaperPositionMode','auto');
     
     
-
+    %%% Creating Diagram
     for k = 1:numel(subs)
         s = subs{k};
 
@@ -99,23 +126,9 @@ end
             si = si.setVariable(tpn, tpv);
         end
     end
-    
-    %%ExternalInput = [0.0  2.0  0.0  0.0  0.0 -2.0 -2.0  0.0;
-    %%             1.0  0.0  1.0  1.0  1.0  0.0  0.0  1.0];
-    
-    % Example with 50,001 samples
-    % u1 = 23 * ones(1, 50001);   % row vector of all 23
-    % u2 = 28 * ones(1, 50001);   % row vector of all 28
-    % ExternalInput = {
-    %        'Input Set Temperature', u1;
-    %        'Input External Temperature', u2;
-    %        'Error Efficiency', u1;
-    %    };
-
    
     %% disp(args.ExternalInput)
     ExternalInput = args.ExternalInput;
-    disp(ExternalInput);
     %% Load the external input into the SimulationInput object
     if ~isempty(ExternalInput)
         % In the model, the external input u is a discrete signal with sample
@@ -132,11 +145,13 @@ end
         
         % Check that the names matchex the names of ExternalInput
         extData = cell(numel(names),1);
-        
+           
+        % Check that the length of ExternalInput and names is the same,
+        assert(numel(names) == numel(fieldnames(ExternalInput)), ...
+            'Number of ExternalInput signals (%d) does not match number of Inports (%d).', ...
+            numel(fieldnames(ExternalInput)), numel(names));
         for i = 1:numel(names)
             key = names{i};      
-            disp(key); % the i-th Inport name (model order)
-            disp(strcmp(ExternalInput(:,1), key));
             idx = find(strcmp(ExternalInput(:,1), key), 1);
             if numel(idx)
                 error('Missing ExternalInput for Inport: %s', key);
@@ -167,24 +182,27 @@ end
 
 
     %% OutputFcn
-    prevSimTime = nan;
     function locPostStepFcn(simTime)
+        if simTime == 0
+            idx = 1;
+            return
+        end
         % Example: ramp a Gain block value while running
-        if simTime == 5
-            % disp('ok')
-            si = si.setVariable('efficiency', 0.2);
-            %set_param('simulink_model/AC Control/Efficiency','Gain',max(0.1,0.86-0.01*simTime/uST));
+        %persistent hasSet
+        %if isempty(hasSet);     hasSet = false;     end
+        idx = idx + 1;
+        for k = 1:numel(args.TimeVaryingParameters)
+            values = args.TimeVaryingParameters.value{k};
+            val = values(idx);
+            prev_val = values(idx-1);       % cell array
+            d = val - prev_val;
+            if abs(d) < 0.0001
+                entry = args.TimeVaryingParameters.identifier{k};
+                set_param(entry, 'Gain', num2str(d));
+            end
+            end
         end
-    
-        % so  = simulink.compiler.getSimulationOutput('the_model');
-        % res = extractResults(so, prevSimTime);
-        % stopRequested = feval(args.OutputFcn, simTime, res);
-        %if stopRequested
-        %    simulink.compiler.stopSimulation('the_model');
-        % end
-        prevSimTime = simTime;
-        end
-    
+        
     %% call sim
     so = sim(si);
     
@@ -265,8 +283,6 @@ function mustBeFunctionHandle(fh)
         throwAsCaller(error("Must be a function handle"));
     end
 end
-
-
 
 
 function emptyFunction
