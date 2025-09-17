@@ -103,7 +103,25 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
         "metadata": str(meta_path),
     }
 
-def generate_time_varying_parameters(root_cause=None, uST=0.1, stop_time=30.0):
+def ramp_profile(n_points,ramp_duration, uST):
+
+    # If stop_time < desired_drop_seconds, clamp the drop to what's possible
+    drop_len = ramp_duration / uST
+
+    # Latest index the drop can start so it finishes by the end
+    latest_start_idx = max(0, n_points - drop_len)
+
+    # Deterministic RNG for reproducibility
+    rng_seed = 4
+    rng = np.random.default_rng(rng_seed)
+
+    # Inclusive of latest_start_idx so the ramp can end exactly at the last sample
+    drop_start_idx = int(rng.integers(0, latest_start_idx + 1))
+    drop_end_idx = min(n_points - 1, drop_start_idx + drop_len - 1)
+    return drop_start_idx, drop_end_idx
+
+
+def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30.0):
     """
     Generate a time series for 'Error Efficiency' that linearly drops from 0.86 to 0.05
     over ~10 s starting at a random time, then holds. Only change-points are returned.
@@ -128,6 +146,12 @@ def generate_time_varying_parameters(root_cause=None, uST=0.1, stop_time=30.0):
           'root_cause': any             # passthrough of input
         }
     """
+
+    entry = {'identifier': [], 'time': [], 'values': [], 'seen': []}
+    # Number of points (include t=0 and t=stop_time)
+    n_points = int(round(stop_time / uST)) + 1
+
+    ### Efficiency 
     if uST is None or stop_time is None:
         raise ValueError("uST and stop_time must be provided.")
     if uST <= 0:
@@ -136,42 +160,26 @@ def generate_time_varying_parameters(root_cause=None, uST=0.1, stop_time=30.0):
         raise ValueError("stop_time must be > 0.")
 
     # Error Efficiency: 0.86 → 0.05 over ~10 s at a random onset time
-    start_val = 0.86
-    end_val = 0.05
-    desired_drop_seconds = 10.0
+    identifier = "simulink_model/AC_Control/Efficiency"
+    
+    initial_value = mle.get_param(identifier, 'Gain')
 
-    # Number of points (include t=0 and t=stop_time)
-    n_points = int(round(stop_time / uST)) + 1
-    times_full = np.arange(n_points, dtype=float) * uST
+    end_val = np.random.uniform(0.01,0.05)
+    ramp_duration = np.random.randint(1,20)
 
-    # If stop_time < desired_drop_seconds, clamp the drop to what's possible
-    drop_seconds = min(desired_drop_seconds, max(uST, stop_time))
 
-    # Number of samples in the drop (at least 2 to form a slope)
-    drop_len = max(2, int(round(drop_seconds / uST)))
-
-    # Latest index the drop can start so it finishes by the end
-    latest_start_idx = max(0, n_points - drop_len)
-
-    # Deterministic RNG for reproducibility
-    rng_seed = 4
-    rng = np.random.default_rng(rng_seed)
-
-    # Inclusive of latest_start_idx so the ramp can end exactly at the last sample
-    drop_start_idx = int(rng.integers(0, latest_start_idx + 1))
-    drop_end_idx = min(n_points - 1, drop_start_idx + drop_len - 1)
+    drop_start_idx, drop_end_idx = ramp_profile(n_points,ramp_duration, uST)
 
     # Build efficiency profile
-    efficiency_full = np.full(n_points, start_val, dtype=float)
+    efficiency_full = np.full(n_points, initial_value, dtype=float)
 
     # Linear ramp from start_val to end_val
-    ramp = np.linspace(start_val, end_val, drop_end_idx - drop_start_idx + 1)
+    ramp = np.linspace(initial_value, end_val, drop_end_idx - drop_start_idx + 1)
     efficiency_full[drop_start_idx:drop_end_idx + 1] = ramp
 
     # After ramp, hold at end_val
     if drop_end_idx + 1 < n_points:
-        efficiency_full[drop_end_idx + 1:] = end_val
-
+        efficiency_full[(drop_end_idx + 1):] = end_val
     # --- Keep only the values that are a change from before ---
     # Use a small tolerance to avoid emitting duplicate float-equal points
     atol = 1e-12
@@ -180,10 +188,16 @@ def generate_time_varying_parameters(root_cause=None, uST=0.1, stop_time=30.0):
         if not np.isclose(efficiency_full[i], efficiency_full[i - 1], rtol=0.0, atol=atol):
             change_indices.append(i)
 
+    times_full = np.arange(n_points, dtype=float) * uST
     time_cp = times_full[change_indices].tolist()
     efficiency_cp = efficiency_full[change_indices].tolist()
-    entry = {'identifier': ['simulink_model/AC_Control/Efficiency'], 'time': [matlab.double([x for x in time_cp])], 'values': [matlab.double([y for y in efficiency_cp])], 'seen': [matlab.double([0 for x in time_cp])]}
-    # entry = {'identifier': ['simulink_model/AC_Control/Efficiency'], 'time_value': [[(t,e) for t,e in zip(time_cp,efficiency_cp)]]}
+    entry["identifier"].append('simulink_model/AC_Control/Efficiency')
+    entry["time"].append(matlab.double([x for x in time_cp]))
+    entry["values"].append(matlab.double([y for y in efficiency_cp]))
+    entry["seen"].append(matlab.double([y for y in efficiency_cp]))
+
+    ### Air Density Lower
+
     return entry
 
 
@@ -228,7 +242,7 @@ def generate_data(mle, root_cause=None, uST=None,  stop_time = 10, diagram_dir=N
 
     tunable_params = generate_tunable_parameters(root_cause=root_cause)
     externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time)
-    TimeVaryingParameters = generate_time_varying_parameters(root_cause=None, uST=uST, stop_time=stop_time)
+    TimeVaryingParameters = generate_time_varying_parameters(mle, root_cause=None, uST=uST, stop_time=stop_time)
     res = mle.sim_the_model("uST",uST, "StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput, "DiagramDataPath", str(diagram_dir), "TimeVaryingParameters", TimeVaryingParameters)
 
     # Convert MATLAB results to DataFrame
@@ -271,6 +285,10 @@ def main():
     root_cause = None
     stop_time = 500
     for i in range(1):
+        # Use to read default values
+        mle.load_system('simulink_model.slx')
+        mle.set_param('simulink_model', 'SimulationCommand', 'start')
+
         # Save everything under a timestamped run folder
         run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name, diagram_subdir= "diagram")
 
