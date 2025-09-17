@@ -103,33 +103,90 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
         "metadata": str(meta_path),
     }
 
-def generate_time_varying_parameters(root_cause=None, uST=None, stop_time=None):
+def generate_time_varying_parameters(root_cause=None, uST=0.1, stop_time=30.0):
+    """
+    Generate a time series for 'Error Efficiency' that linearly drops from 0.86 to 0.05
+    over ~10 s starting at a random time, then holds. Only change-points are returned.
+
+    Parameters
+    ----------
+    root_cause : any, optional
+        Arbitrary metadata to carry through (not used in the generation logic).
+    uST : float
+        Sample period in seconds (must be > 0).
+    stop_time : float
+        Total duration in seconds (must be > 0).
+
+    Returns
+    -------
+    dict
+        {
+          'time': list[float],          # timestamps at change-points only
+          'efficiency': list[float],    # values at those timestamps
+          'drop_start_time': float,     # when the ramp starts
+          'drop_end_time': float,       # when the ramp ends
+          'root_cause': any             # passthrough of input
+        }
+    """
+    if uST is None or stop_time is None:
+        raise ValueError("uST and stop_time must be provided.")
+    if uST <= 0:
+        raise ValueError("uST must be > 0.")
+    if stop_time <= 0:
+        raise ValueError("stop_time must be > 0.")
+
     # Error Efficiency: 0.86 → 0.05 over ~10 s at a random onset time
     start_val = 0.86
     end_val = 0.05
     desired_drop_seconds = 10.0
+
     # Number of points (include t=0 and t=stop_time)
-    n_points = int(stop_time / uST) + 1
-    drop_seconds = min(desired_drop_seconds, max(uST, stop_time))  # guard if stop_time < 10 s
+    n_points = int(round(stop_time / uST)) + 1
+    times_full = np.arange(n_points, dtype=float) * uST
+
+    # If stop_time < desired_drop_seconds, clamp the drop to what's possible
+    drop_seconds = min(desired_drop_seconds, max(uST, stop_time))
 
     # Number of samples in the drop (at least 2 to form a slope)
     drop_len = max(2, int(round(drop_seconds / uST)))
+
+    # Latest index the drop can start so it finishes by the end
     latest_start_idx = max(0, n_points - drop_len)
+
+    # Deterministic RNG for reproducibility
     rng_seed = 4
     rng = np.random.default_rng(rng_seed)
-    drop_start_idx = int(rng.integers(0, latest_start_idx + 1))  # inclusive of latest_start_idx
+
+    # Inclusive of latest_start_idx so the ramp can end exactly at the last sample
+    drop_start_idx = int(rng.integers(0, latest_start_idx + 1))
     drop_end_idx = min(n_points - 1, drop_start_idx + drop_len - 1)
 
-    efficiency = np.full(n_points, start_val, dtype=float)
+    # Build efficiency profile
+    efficiency_full = np.full(n_points, start_val, dtype=float)
+
     # Linear ramp from start_val to end_val
     ramp = np.linspace(start_val, end_val, drop_end_idx - drop_start_idx + 1)
-    efficiency[drop_start_idx:drop_end_idx + 1] = ramp
+    efficiency_full[drop_start_idx:drop_end_idx + 1] = ramp
+
     # After ramp, hold at end_val
     if drop_end_idx + 1 < n_points:
-        efficiency[drop_end_idx + 1:] = end_val
-    entry = {'identifier': ['simulink_model/AC_Control/Efficiency'], 'value': [matlab.double(efficiency.tolist())]}
+        efficiency_full[drop_end_idx + 1:] = end_val
 
+    # --- Keep only the values that are a change from before ---
+    # Use a small tolerance to avoid emitting duplicate float-equal points
+    atol = 1e-12
+    change_indices = [0]
+    for i in range(1, n_points):
+        if not np.isclose(efficiency_full[i], efficiency_full[i - 1], rtol=0.0, atol=atol):
+            change_indices.append(i)
+
+    time_cp = times_full[change_indices].tolist()
+    efficiency_cp = efficiency_full[change_indices].tolist()
+    entry = {'identifier': ['simulink_model/AC_Control/Efficiency'], 'time': [matlab.double([x for x in time_cp])], 'values': [matlab.double([y for y in efficiency_cp])], 'seen': [matlab.double([0 for x in time_cp])]}
+    # entry = {'identifier': ['simulink_model/AC_Control/Efficiency'], 'time_value': [[(t,e) for t,e in zip(time_cp,efficiency_cp)]]}
     return entry
+
+
 
 
 def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_seed=None):

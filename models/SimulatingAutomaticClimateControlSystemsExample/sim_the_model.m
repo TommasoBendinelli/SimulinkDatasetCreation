@@ -33,6 +33,32 @@ end
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
     model_name = 'simulink_model';              % base name (no .slx)
     mdlfile = which([model_name '.slx']);
+    
+    % Just use to make our life easier to debug, if we are running with python this will be true and then we are saving the .mat file, otherwise we load the .mat file
+    if ~isempty(args.TimeVaryingParameters)
+        % make sure output folder exists
+        if ~isfolder(args.DiagramDataPath)
+            mkdir(args.DiagramDataPath);
+        end
+    
+        % construct full path to file
+        tvFile = fullfile(args.DiagramDataPath, "time_varying_params.mat");
+        TimeVaryingParameters = args.TimeVaryingParameters;
+
+    % save each field of the struct as its own variable in the .mat
+    save(tvFile, "-struct", "args", "TimeVaryingParameters");
+    else
+    % --- Load from a predefined location when no new parameters are given ---
+    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/SimulatingAutomaticClimateControlSystemsExample/20250917_104729__175d0b18/diagram/time_varying_params.mat";
+
+    if isfile(tvFile)
+        S = load(tvFile);   % returns struct
+        TimeVaryingParameters = S.TimeVaryingParameters;
+    else
+        warning("Time-varying parameter file not found: %s", tvFile);
+    end
+    end
+    % End of the debug part
 
     if isempty(mdlfile)
         error("sim_the_model:ModelNotFound", ...
@@ -45,34 +71,17 @@ end
     end
     si = Simulink.SimulationInput(model_name);
     si = si.setVariable('uST', args.uST);
-
+    
     % Go through each Time Varying Parameter and set the first value
-    % Time-varying parameters: seed each with its first value
-    % Expected schema: args.TimeVaryingParameters(k).identifier, .values
-
-
-    % Build struct
-    args.TimeVaryingParameters = struct( ...
-        'identifier', {{'simulink_model/AC_Control/Efficiency'}}, ...
-        'value',      {{efficiency}} );
-        disp(args.TimeVaryingParameters)
-        
-    % args.TimeVaryingParameters = 0.86 * ones(1, 50001);
-    for k = 1:numel(args.TimeVaryingParameters)
-        identifier = args.TimeVaryingParameters.identifier{k};  % cell array
-        value      = args.TimeVaryingParameters.value{k};       % cell array
-    
-        % Unwrap cells
-        if iscell(identifier), identifier = identifier{1}; end
-        if iscell(value),      value      = value{1};      end
-    
-        % Use the first value to seed
-        set_param(identifier, 'Gain', num2str(value(1)));
+    for k = 1:numel(TimeVaryingParameters)
+        time_value = TimeVaryingParameters.values{k};  % cell array
+        identifier = TimeVaryingParameters.identifier{k};
+        if iscell(time_value), time_value = time_value{1}; end
+        % Set the time-varying parameter values for the simulation
+        set_param(identifier, 'Gain', num2str(time_value(1)));
     end
+
      
-
-
-    % si = si.setVariable('Efficiency', 0.86);
     % register the post-step callback
     if ~isequal(args.OutputFcn, @emptyFunction) || true        % you want locPostStepFcn
         si = simulink.compiler.setPostStepFcn( ...
@@ -183,22 +192,20 @@ end
 
     %% OutputFcn
     function locPostStepFcn(simTime)
-        if simTime == 0
-            idx = 1;
-            return
-        end
-        % Example: ramp a Gain block value while running
-        %persistent hasSet
-        %if isempty(hasSet);     hasSet = false;     end
-        idx = idx + 1;
-        for k = 1:numel(args.TimeVaryingParameters)
-            values = args.TimeVaryingParameters.value{k};
-            val = values(idx);
-            prev_val = values(idx-1);       % cell array
-            d = val - prev_val;
-            if abs(d) < 0.0001
-                entry = args.TimeVaryingParameters.identifier{k};
-                set_param(entry, 'Gain', num2str(d));
+        for k = 1:numel(TimeVaryingParameters)
+            identifier = TimeVaryingParameters.identifier{k};
+            times = TimeVaryingParameters.time{k};
+            values = TimeVaryingParameters.values{k};
+            seens = TimeVaryingParameters.seen{k};
+            
+            subset = values(times <= simTime & seens == 0);
+            mask = (times <= simTime & seens == 0);
+            if numel(subset) > 0
+                assert(numel(subset) == 1);
+                % Here 'd' must be defined or replaced by the actual value you want
+                set_param(identifier, 'Gain', num2str(subset));
+                % Optionally mark as seen
+                TimeVaryingParameters.seen{k}(mask) = 1;
             end
             end
         end
