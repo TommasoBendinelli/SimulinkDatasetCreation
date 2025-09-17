@@ -30,10 +30,10 @@ arguments
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
     args.DiagramDataPath (1,1) string = "."   % <-- NEW: path argument
 end
+    assignin('base','uST',args.uST);
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
     model_name = 'simulink_model';              % base name (no .slx)
     mdlfile = which([model_name '.slx']);
-    
     % Just use to make our life easier to debug, if we are running with python this will be true and then we are saving the .mat file, otherwise we load the .mat file
     if ~isempty(args.TimeVaryingParameters)
         % make sure output folder exists
@@ -49,7 +49,7 @@ end
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
     else
     % --- Load from a predefined location when no new parameters are given ---
-    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/SimulatingAutomaticClimateControlSystemsExample/20250917_104729__175d0b18/diagram/time_varying_params.mat";
+    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/SimulatingAutomaticClimateControlSystemsExample/20250917_151803__4b5275c4/diagram/time_varying_params.mat";
 
     if isfile(tvFile)
         S = load(tvFile);   % returns struct
@@ -79,6 +79,18 @@ end
         if iscell(time_value), time_value = time_value{1}; end
         % Set the time-varying parameter values for the simulation
         set_param(identifier, 'Gain', num2str(time_value(1)));
+
+        % Set the label before and after
+        lh  = get_param(identifier,'LineHandles');
+        for i = 1:numel(lh.Inport)
+          L = lh.Inport(i);
+          if L~=-1, set_param(L,'Name',sprintf('%s_in%d',get_param(identifier,'Name'),i)); end
+        end
+        for j = 1:numel(lh.Outport)
+          L = lh.Outport(j);
+          if L~=-1, set_param(L,'Name',sprintf('%s_out%d',get_param(identifier,'Name'),j)); end
+        end
+        set_param(bdroot(identifier),'SimulationCommand','update');
     end
 
      
@@ -135,6 +147,8 @@ end
             si = si.setVariable(tpn, tpv);
         end
     end
+
+    
    
     %% disp(args.ExternalInput)
     ExternalInput = args.ExternalInput;
@@ -231,6 +245,9 @@ function res = extractResults(so, prevSimTime)
     for i = 1:n
         sig = ds.getElement(i);
         ts  = sig.Values;     % timeseries
+        if contains(ts.Name, 'pre_air')
+            disp('here')
+        end
         if isempty(ts) || ~isa(ts,'timeseries'); continue; end
 
         % Use the signal's logical name; sanitize for struct field name

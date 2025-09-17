@@ -54,13 +54,9 @@ def generate_tunable_parameters(root_cause=None) -> Dict:
         "u_recycling_air_bool": int(np.random.randint(0, 2)),                 # 0 or 1
         "u_engine_speed_int": int(np.random.randint(1500, 2500)),             # [rpm]
         "u_torque_compensation": int(np.random.randint(20, 30)),
-        "param_power_per_occupants": int(np.random.randint(50, 150)),
+        "param_power_per_occupants": 100, #int(np.random.randint(50, 150)),
         "param_first_order_inertia": float(1.0 / int(np.random.randint(2500, 5000))),
     }
-
-    if root_cause is not None:
-        if root_cause == "efficiency":
-            res["error_efficiency"] = 0.001 # np.random.uniform(0,0.1)
 
     return res 
 
@@ -110,16 +106,38 @@ def ramp_profile(n_points,ramp_duration, uST):
 
     # Latest index the drop can start so it finishes by the end
     latest_start_idx = max(0, n_points - drop_len)
-
     # Deterministic RNG for reproducibility
     rng_seed = 4
     rng = np.random.default_rng(rng_seed)
 
     # Inclusive of latest_start_idx so the ramp can end exactly at the last sample
     drop_start_idx = int(rng.integers(0, latest_start_idx + 1))
-    drop_end_idx = min(n_points - 1, drop_start_idx + drop_len - 1)
+    drop_end_idx = int(min(n_points - 1, drop_start_idx + drop_len - 1))
     return drop_start_idx, drop_end_idx
 
+def modify_value(n_points, initial_value, end_val, drop_end_idx, drop_start_idx, uST):
+    # Build efficiency profile
+    value = np.full(n_points, initial_value, dtype=float)
+
+    # Linear ramp from start_val to end_val
+    ramp = np.linspace(initial_value, end_val, drop_end_idx - drop_start_idx + 1)
+    value[drop_start_idx:drop_end_idx + 1] = ramp
+
+    # After ramp, hold at end_val
+    if drop_end_idx + 1 < n_points:
+        value[(drop_end_idx + 1):] = end_val
+    # --- Keep only the values that are a change from before ---
+    # Use a small tolerance to avoid emitting duplicate float-equal points
+    atol = 1e-12
+    change_indices = [0]
+    for i in range(1, n_points):
+        if not np.isclose(value[i], value[i - 1], rtol=0.0, atol=atol):
+            change_indices.append(i)
+
+    times_full = np.arange(n_points, dtype=float) * uST
+    time_cp = times_full[change_indices].tolist()
+    value = value[change_indices].tolist()
+    return times_full, time_cp, value
 
 def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30.0):
     """
@@ -161,43 +179,38 @@ def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30
 
     # Error Efficiency: 0.86 → 0.05 over ~10 s at a random onset time
     identifier = "simulink_model/AC_Control/Efficiency"
-    
-    initial_value = mle.get_param(identifier, 'Gain')
+    initial_value = float(mle.get_param(identifier.replace("simulink_model","simulink_model_original"), 'Gain'))
 
     end_val = np.random.uniform(0.01,0.05)
     ramp_duration = np.random.randint(1,20)
 
-
     drop_start_idx, drop_end_idx = ramp_profile(n_points,ramp_duration, uST)
 
-    # Build efficiency profile
-    efficiency_full = np.full(n_points, initial_value, dtype=float)
-
-    # Linear ramp from start_val to end_val
-    ramp = np.linspace(initial_value, end_val, drop_end_idx - drop_start_idx + 1)
-    efficiency_full[drop_start_idx:drop_end_idx + 1] = ramp
-
-    # After ramp, hold at end_val
-    if drop_end_idx + 1 < n_points:
-        efficiency_full[(drop_end_idx + 1):] = end_val
-    # --- Keep only the values that are a change from before ---
-    # Use a small tolerance to avoid emitting duplicate float-equal points
-    atol = 1e-12
-    change_indices = [0]
-    for i in range(1, n_points):
-        if not np.isclose(efficiency_full[i], efficiency_full[i - 1], rtol=0.0, atol=atol):
-            change_indices.append(i)
-
-    times_full = np.arange(n_points, dtype=float) * uST
-    time_cp = times_full[change_indices].tolist()
-    efficiency_cp = efficiency_full[change_indices].tolist()
-    entry["identifier"].append('simulink_model/AC_Control/Efficiency')
+    _, time_cp, value = modify_value(n_points, initial_value, end_val, drop_end_idx, drop_start_idx, uST)
+    #
+    entry["identifier"].append(identifier)
     entry["time"].append(matlab.double([x for x in time_cp]))
-    entry["values"].append(matlab.double([y for y in efficiency_cp]))
-    entry["seen"].append(matlab.double([y for y in efficiency_cp]))
+    entry["values"].append(matlab.double([y for y in value]))
+    entry["seen"].append(matlab.double([0 for _ in value])) # This is used internally by the Matlab script, we need to set all 0 by default
 
     ### Air Density Lower
+    identifier = "simulink_model/Heater_Control/Air_Density"
+    initial_value = float(mle.get_param(identifier.replace("simulink_model","simulink_model_original"), 'Gain'))
+    end_val = np.random.uniform(0.0001,0.000001)
+    ramp_duration = np.random.randint(1,20)
 
+    drop_start_idx, drop_end_idx = ramp_profile(n_points,ramp_duration, uST)
+    _, time_cp, value = modify_value(n_points, initial_value, end_val, drop_end_idx, drop_start_idx, uST)
+
+    entry["identifier"].append(identifier)
+    entry["time"].append(matlab.double([x for x in time_cp]))
+    entry["values"].append(matlab.double([y for y in value]))
+    entry["seen"].append(matlab.double([0 for _ in value])) # This is used internally by the Matlab script, we need to set all 0 by default
+
+
+    for k in entry.keys():
+        entry[k].pop(1)
+    
     return entry
 
 
@@ -213,17 +226,32 @@ def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_
     n_points = int(stop_time / uST) + 1
     t = np.linspace(0.0, stop_time, n_points)
 
-    # u1: step signal, 23 in first half, 21 in second half
-    half_time = len(t) // 2
+    half_time = int(np.random.uniform(len(t)*0.1,len(t)*0.9))
     t_half = t[half_time]
     u1 = np.where(t > t_half, 21.0, 23.0)
 
     # u2: triangular profile (28 → 35 → 27)
-    third = n_points // 3
-    u2_first  = np.full(third, 28.0)
-    u2_second = np.linspace(28.0, 35.0, third, endpoint=False)
-    u2_third  = np.linspace(35.0, 27.0, n_points - 2 * third)
-    u2 = np.concatenate([u2_first, u2_second, u2_third])
+
+    # summer 
+    if True:
+        third = n_points // 3
+        start = 18
+        high_temperature = 30
+        u2_first  = np.full(third, 28.0)
+        u2_second = np.linspace(28.0, 35.0, third, endpoint=False)
+        u2_third  = np.linspace(35.0, 27.0, n_points - 2 * third)
+        u2 = np.concatenate([u2_first, u2_second, u2_third])
+
+    # winter
+    if False:
+        third = n_points // 3
+        start = -5
+        high_temperature = 30
+        u2_first  = np.full(third, -5)
+        u2_second = np.linspace(start, high_temperature, third, endpoint=False)
+        u2_third  = np.linspace(high_temperature,  -5,  n_points - 2 * third)
+        u2 = np.concatenate([u2_first, u2_second, u2_third])
+
 
     
     # Pack into dict
@@ -286,8 +314,8 @@ def main():
     stop_time = 500
     for i in range(1):
         # Use to read default values
-        mle.load_system('simulink_model.slx')
-        mle.set_param('simulink_model', 'SimulationCommand', 'start')
+        mle.load_system('simulink_model_original.slx')
+        # mle.set_param('simulink_model', 'SimulationCommand', 'start')
 
         # Save everything under a timestamped run folder
         run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name, diagram_subdir= "diagram")

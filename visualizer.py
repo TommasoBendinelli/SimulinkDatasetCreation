@@ -155,7 +155,7 @@ if load_clicked or run_path:
     # Signal selection
     all_cols = list(df.columns)
     st.subheader("Signals")
-    default_cols = all_cols[: min(6, len(all_cols))]
+    default_cols = all_cols#[: min(6, len(all_cols))]
     sel_cols = st.multiselect("Pick signals to plot", options=all_cols, default=default_cols)
 
     # Time & resampling controls
