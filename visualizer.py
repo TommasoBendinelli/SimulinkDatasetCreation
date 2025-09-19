@@ -184,13 +184,31 @@ if load_clicked or run_path:
 
     # Plot
     st.subheader("Plot")
+    normalize_plotted_data = st.checkbox("Normalize Data?", True)
+    if normalize_plotted_data:
+        numeric_cols = [c for c in cols_present if pd.api.types.is_numeric_dtype(view[c])]
+        v = view.copy()
+        if numeric_cols:
+            
+            for c in numeric_cols:
+                s = pd.to_numeric(v[c], errors="coerce")
+                min_val = np.nanmin(s.values)
+                max_val = np.nanmax(s.values)
+                if np.isfinite(max_val) and np.isfinite(min_val) and (max_val > min_val):
+                    # standard min-max scaling to [0, 1]
+                    v[c] = (s - min_val) / (max_val - min_val)
+                else:
+                    # constant or invalid column → set to 0
+                    v[c] = 0.0
+    else:
+        v = view.copy()
     if view.empty or not cols_present:
         st.info("No data to plot with the current filters.")
     else:
         fig = go.Figure()
         x = view.index.values
         for col in cols_present:
-            fig.add_trace(go.Scatter(x=x, y=view[col].values, mode="lines", name=col))
+            fig.add_trace(go.Scatter(x=x, y=v[col].values, mode="lines", name=col))
         fig.update_layout(
             xaxis_title="Time [s]",
             yaxis_title="Value",

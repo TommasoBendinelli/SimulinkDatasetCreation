@@ -49,12 +49,10 @@ def get_time_series(res: Dict, assuming_all_scalar: bool = True) -> pd.DataFrame
 def generate_tunable_parameters(root_cause=None) -> Dict:
     # Use int() to ensure pure Python scalars (MATLAB Engine is picky)
     res = {
-        # "u_set_point": [float(int(np.random.randint(18, 24)))]*100,                 # [°C]
-        # "u_external_temperature": float(int(np.random.randint(-10, 40))),     # [°C]
         "u_recycling_air_bool": int(np.random.randint(0, 2)),                 # 0 or 1
         "u_engine_speed_int": int(np.random.randint(1500, 2500)),             # [rpm]
         "u_torque_compensation": int(np.random.randint(20, 30)),
-        "param_power_per_occupants": 100, #int(np.random.randint(50, 150)),
+        "param_power_per_occupants": int(np.random.randint(50, 150)),
         "param_first_order_inertia": float(1.0 / int(np.random.randint(2500, 5000))),
     }
 
@@ -233,17 +231,17 @@ def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_
     # u2: triangular profile (28 → 35 → 27)
 
     # summer 
-    if True:
+    if False:
         third = n_points // 3
-        start = 18
-        high_temperature = 30
+        start = 18 
+        high_temperature = 35 
         u2_first  = np.full(third, 28.0)
-        u2_second = np.linspace(28.0, 35.0, third, endpoint=False)
-        u2_third  = np.linspace(35.0, 27.0, n_points - 2 * third)
+        u2_second = np.linspace(28.0, high_temperature, third, endpoint=False)
+        u2_third  = np.linspace(high_temperature, 27.0, n_points - 2 * third)
         u2 = np.concatenate([u2_first, u2_second, u2_third])
 
     # winter
-    if False:
+    if True:
         third = n_points // 3
         start = -5
         high_temperature = 30
@@ -253,11 +251,12 @@ def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_
         u2 = np.concatenate([u2_first, u2_second, u2_third])
 
 
-    
     # Pack into dict
+    u1 = u1 + 273
+    u2 = u2 + 273
     signals = {
         "InputSetTemperature": u1.tolist(),
-        "InputExternalTemperature": u2.tolist(),
+        "ExternalTemperature": u2.tolist(),
     }
 
     # MATLAB-friendly version
