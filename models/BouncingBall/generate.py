@@ -5,8 +5,10 @@ Simulink runner with robust saving + diagnostics for large time series.
 import os
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 import sys 
+import shutil
+
 import random
 
 import numpy as np
@@ -94,38 +96,25 @@ def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols
 
 
 
-def compress_df(df, uST, target_column=""):
-    breakpoint()
-    # Build efficiency profile
-    # value = np.full(n_points, initial_value, dtype=float)
-
-    # # Linear ramp from start_val to end_val
-    # ramp = np.linspace(initial_value, end_val, drop_end_idx - drop_start_idx + 1)
-    # value[drop_start_idx:drop_end_idx + 1] = ramp
-
-    # # After ramp, hold at end_val
-    # if drop_end_idx + 1 < n_points:
-    #     value[(drop_end_idx + 1):] = end_val
-    # # --- Keep only the values that are a change from before ---
+def compress_df(df, target_column=""):
     # # Use a small tolerance to avoid emitting duplicate float-equal points
-    # atol = 1e-12
-    # change_indices = [0]
-    # for i in range(1, n_points):
-    #     if not np.isclose(value[i], value[i - 1], rtol=0.0, atol=atol):
-    #         change_indices.append(i)
+    atol = 1e-12
+    change_indices = [0]
+    values = df[target_column]
+    for i in range(1, len(df)):
+        if not np.isclose(values[i], values[i - 1], rtol=0.0, atol=atol):
+            change_indices.append(i)
+    time_delta = df["time"][change_indices].values
+    values_delta = values[change_indices].values
+    return time_delta, values_delta
 
-    # times_full = np.arange(n_points, dtype=float) * uST
-    # time_cp = times_full[change_indices].tolist()
-    # value = value[change_indices].tolist()
-    # return times_full, time_cp, value
-
-def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30.0, seed=42):
+def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict,dict]:
     # Number of points (include t=0 and t=stop_time)
     n_points = int(round(stop_time / uST)) + 1
-    parameter = {'identifier': [], 'time': [], 'values': [], 'seen': []}
+    res_dict = {'identifier': [], 'time': [], 'values': [], 'seen': [], 'key': []}
     # Define parameters to control 
-    parameters = ["X0", "Coefficient of Restitution", "Gravitational acceleration"]
-
+    parameters = ["X0", "Coefficient of Restitution", "Gravitational acceleration"] 
+    blocks_type = {}
     # Fetch the intial values for each of these
     intial_values_dict = {}
     for parameter in parameters:
@@ -133,15 +122,17 @@ def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30
         paramInfo = mle.get_param(identifier, 'DialogParameters')
         # Infer the type of block
         if "Value" in paramInfo and "Constant value" in paramInfo["Value"]["Prompt"]:
-            initial_value = float(mle.get_param(identifier, 'Value'))
+            key = 'Value'
         elif "Gain" in paramInfo:
-            initial_value = float(mle.get_param(identifier, 'Gain'))
+            key = 'Gain'
+        elif "InitialCondition" in paramInfo:
+            key = 'InitialCondition'
+        initial_value = float(mle.get_param(identifier, key))
 
         intial_values_dict[parameter] = initial_value
-
+        blocks_type[parameter] = key
     # Randomize slighly variables that can be randomized
-    
-    np.random.seed(seed)
+
     intial_values_dict["Coefficient of Restitution"] = np.random.uniform(-0.2,-0.9)
     intial_values_dict["X0"] = np.random.uniform(0.5, 30)
 
@@ -150,7 +141,7 @@ def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30
     df = pd.DataFrame({**{"time": times_full}, **{p: [v]*n_points for p, v in intial_values_dict.items()}})
 
     # Introduce a fault programmatically 
-    faulty_simulation = [{"target_column": "Gravitational acceleration", "values": [3, 20]}]
+    faulty_simulation = [  {"target_column": "Gravitational acceleration", "values": [-3, -20, 2]}, {"target_column":"Coefficient of Restitution","values": [0.2, -1.2, 0.0001]}]
     entry = random.choice(faulty_simulation)     # pick a random dictionary
     end_value = random.choice(entry["values"]) * np.random.uniform(0.8,1.2)      # pick a random element from "values"
     target_column = entry["target_column"]
@@ -159,7 +150,7 @@ def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30
     start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.2,0.8)
     length_ramp = total_length * np.random.uniform(0.01,0.1)
     end_time = start_time + length_ramp
-    type_of_corruption = random.choice(["step","linear_ramp","logistic_ramp"])
+    type_of_corruption = random.choice(["step", "linear_ramp","logistic_ramp"])
     if type_of_corruption == "linear_ramp":
         df = linear_ramp(df,target_column=target_column, start_time=start_time, end_time=end_time, end_value=end_value)
     elif type_of_corruption == "logistic_ramp":
@@ -167,52 +158,41 @@ def generate_time_varying_parameters(mle, root_cause=None, uST=0.1, stop_time=30
     elif type_of_corruption == "step":
         df = step(df,target_column=target_column,time=start_time,end_value=end_value)
 
-
-    _, time_cp, value = compress_df(df, uST, target_column=target_column)
-    #
-
+    time_delta, values_delta = compress_df(df, target_column=target_column)
+    res_dict["identifier"].append("simulink_model/" + target_column)
+    res_dict["time"].append(matlab.double([x for x in time_delta]))
+    res_dict["values"].append(matlab.double([y for y in values_delta]))
+    res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
+    res_dict["key"].append(blocks_type[target_column])
     
-    parameter["identifier"].append(identifier)
-    parameter["time"].append(matlab.double([x for x in time_cp]))
-    parameter["values"].append(matlab.double([y for y in value]))
-    parameter["seen"].append(matlab.double([0 for _ in value])) # This is used internally by the Matlab script, we need to set all 0 by default
-
-    # ### Air Density Lower
-    # identifier = "simulink_model/Heater_Control/Air_Density"
-    # initial_value = float(mle.get_param(identifier.replace("simulink_model","simulink_model_original"), 'Gain'))
-    # end_val = np.random.uniform(0.0001,0.000001)
-    # ramp_duration = np.random.randint(1,20)
-
-    # drop_start_idx, drop_end_idx = ramp_profile(n_points,ramp_duration, uST)
-    # _, time_cp, value = compress_df(n_points, initial_value, end_val, drop_end_idx, drop_start_idx, uST)
-
-    # parameter["identifier"].append(identifier)
-    # parameter["time"].append(matlab.double([x for x in time_cp]))
-    # parameter["values"].append(matlab.double([y for y in value]))
-    # parameter["seen"].append(matlab.double([0 for _ in value])) # This is used internally by the Matlab script, we need to set all 0 by default
-
-
-    # for k in parameter.keys():
-    #     parameter[k].pop(1)
+    root_cause = {}
+    root_cause["root_cause"] = target_column
+    root_cause["starting_time"] = start_time
+    root_cause["new_value"] = end_value
+    root_cause["transition_type"] = type_of_corruption
+    return res_dict, root_cause
     
-    return parameter
 
 
 
 
-def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_seed=None, seed=None) -> dict:
-
-    # MATLAB-friendly version
-    matlab_signals = {}
-    return matlab_signals
+def generate_time_varying_inputs(root_cause=None, uST=None, stop_time=None, rng_seed=None) -> dict:
+    return {}
 
 
-def generate_data(mle, root_cause=None, uST=None,  stop_time = 10, diagram_dir=None, seed=42):
+def generate_data(mle,  uST=None,  override_stop_time = None, diagram_dir=None,seed=None):
     # Inputs
+    if override_stop_time:
+        stop_time = override_stop_time
+    else:
+        stop_time = float(mle.get_param("simulink_model_original", "StopTime"))
 
-    externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time, seed=seed)
-    TimeVaryingParameters = generate_time_varying_parameters(mle, root_cause=None, uST=uST, stop_time=stop_time, seed=seed)
-    res = mle.sim_the_model("uST",uST, "StopTime", stop_time, "TunableParameters", tunable_params, "ExternalInput", externalInput, "DiagramDataPath", str(diagram_dir), "TimeVaryingParameters", TimeVaryingParameters)
+    externalInput = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time)
+    TimeVaryingParameters, root_cause = generate_time_varying_parameters(mle, uST=uST, stop_time=stop_time)
+    if externalInput == {}:
+        res = mle.sim_the_model("uST",uST, "StopTime", stop_time, "DiagramDataPath", str(diagram_dir), "TimeVaryingParameters", TimeVaryingParameters) 
+    else:
+        res = mle.sim_the_model("uST",uST, "StopTime", stop_time, "ExternalInput", externalInput, "DiagramDataPath", str(diagram_dir), "TimeVaryingParameters", TimeVaryingParameters)
 
     # Convert MATLAB results to DataFrame
     df = get_time_series(res, assuming_all_scalar=True)
@@ -225,7 +205,7 @@ def generate_data(mle, root_cause=None, uST=None,  stop_time = 10, diagram_dir=N
         "time_start_s": float(df.index.min()) if not df.empty else None,
         "time_end_s": float(df.index.max()) if not df.empty else None,
         "columns": list(df.columns) if not df.empty else [],
-        "tunable_parameters": tunable_params,
+        "seed": seed,
         "env": {
             "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
             "pandas": pd.__version__,
@@ -233,15 +213,14 @@ def generate_data(mle, root_cause=None, uST=None,  stop_time = 10, diagram_dir=N
             # Add MATLAB release if you like:
             # "matlab_release": str(mle.version(nargout=1))
         },
-        "root_cause": root_cause
     }
+    metadata = {**metadata,**root_cause}
     return df, metadata
 
    
         
 # ---------- main ----------
 def main():
-    seed = 42
     # Optional: make runs reproducible; comment this out if you want pure randomness
     np.random.seed(None)  # or set an int seed
     current_path = os.getcwd()
@@ -251,19 +230,21 @@ def main():
     mle = matlab.engine.start_matlab()
     uST = 0.01 
 
+    override_stop_time = None
+    for i in range(10):
+        np.random.seed(i)
+        # Make a copy of simulink_model_original
 
-    root_cause = None
-    stop_time = 500
-    for i in range(1):
         # Use to read default values
         mle.load_system('simulink_model_original.slx')
+        shutil.copy("simulink_model_original.slx", "simulink_model.slx")
 
         # tunable_params = generate_tunable_parameters()
-        sanity_check(uST=uST,stop_time=stop_time)
+        sanity_check(uST=uST,override_stop_time=override_stop_time)
         
         run_dir = new_run_dir(Path(current_path) / "data", system_name=Path(__file__).parent.name, diagram_subdir= "diagram")
 
-        df, metadata= generate_data(mle,root_cause=root_cause, uST=uST, stop_time=stop_time, diagram_dir=run_dir / "diagram", seed=seed)
+        df, metadata= generate_data(mle,  uST=uST, override_stop_time=override_stop_time, diagram_dir=run_dir / "diagram", seed=i)
 
         
         paths = save_artifacts(run_dir, df, metadata)
