@@ -113,10 +113,16 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
     n_points = int(round(stop_time / uST)) + 1
     res_dict = {'identifier': [], 'time': [], 'values': [], 'seen': [], 'key': []}
     # Define parameters to control 
-    parameters = ["X0", "Coefficient of Restitution", "Gravitational acceleration"] 
+    
     blocks_type = {}
-    # Fetch the intial values for each of these
+    
+
+    # You should only change these in theory
     intial_values_dict = {}
+    parameters = [] 
+    faulty_simulation = [ ]
+
+
     for parameter in parameters:
         identifier = f"simulink_model_original/{parameter}"
         paramInfo = mle.get_param(identifier, 'DialogParameters')
@@ -133,43 +139,43 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
         blocks_type[parameter] = key
     # Randomize slighly variables that can be randomized
 
-    intial_values_dict["Coefficient of Restitution"] = np.random.uniform(-0.2,-0.9)
-    intial_values_dict["X0"] = np.random.uniform(0.5, 30)
-
     # Create the pandas dataframe
     times_full = np.arange(n_points, dtype=float) * uST
     df = pd.DataFrame({**{"time": times_full}, **{p: [v]*n_points for p, v in intial_values_dict.items()}})
 
     # Introduce a fault programmatically 
-    faulty_simulation = [  {"target_column": "Gravitational acceleration", "values": [-3, -20, 2]}, {"target_column":"Coefficient of Restitution","values": [-1.2]}]
-    entry = random.choice(faulty_simulation)     # pick a random dictionary
-    end_value = random.choice(entry["values"]) * np.random.uniform(0.8,1.2)      # pick a random element from "values"
-    target_column = entry["target_column"]
-    # Sample a random start time
-    total_length = (df["time"].max() - df["time"].min())
-    start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.2,0.8)
-    length_ramp = total_length * np.random.uniform(0.01,0.1)
-    end_time = start_time + length_ramp
-    type_of_corruption = random.choice(["step", "linear_ramp","logistic_ramp"])
-    if type_of_corruption == "linear_ramp":
-        df = linear_ramp(df,target_column=target_column, start_time=start_time, end_time=end_time, end_value=end_value)
-    elif type_of_corruption == "logistic_ramp":
-        df = logistic_ramp(df,target_column=target_column,start_time=start_time, end_time=end_time, end_value=end_value)
-    elif type_of_corruption == "step":
-        df = step(df,target_column=target_column,time=start_time,end_value=end_value)
+    if faulty_simulation:
+        entry = random.choice(faulty_simulation)     # pick a random dictionary
+        end_value = random.choice(entry["values"]) * np.random.uniform(0.8,1.2)      # pick a random element from "values"
+        target_column = entry["target_column"]
+        # Sample a random start time
+        total_length = (df["time"].max() - df["time"].min())
+        start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.3,0.7)
+        length_ramp = total_length * np.random.uniform(0.01,0.1)
+        end_time = start_time + length_ramp
+        type_of_corruption = random.choice(["step", "linear_ramp","logistic_ramp"])
+        if type_of_corruption == "linear_ramp":
+            df = linear_ramp(df,target_column=target_column, start_time=start_time, end_time=end_time, end_value=end_value)
+        elif type_of_corruption == "logistic_ramp":
+            df = logistic_ramp(df,target_column=target_column,start_time=start_time, end_time=end_time, end_value=end_value)
+        elif type_of_corruption == "step":
+            df = step(df,target_column=target_column,time=start_time,end_value=end_value)
 
-    time_delta, values_delta = compress_df(df, target_column=target_column)
-    res_dict["identifier"].append("simulink_model/" + target_column)
-    res_dict["time"].append(matlab.double([x for x in time_delta]))
-    res_dict["values"].append(matlab.double([y for y in values_delta]))
-    res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
-    res_dict["key"].append(blocks_type[target_column])
-    
-    root_cause = {}
-    root_cause["root_cause"] = target_column
-    root_cause["starting_time"] = start_time
-    root_cause["new_value"] = end_value
-    root_cause["transition_type"] = type_of_corruption
+        time_delta, values_delta = compress_df(df, target_column=target_column)
+        res_dict["identifier"].append("simulink_model/" + target_column)
+        res_dict["time"].append(matlab.double([x for x in time_delta]))
+        res_dict["values"].append(matlab.double([y for y in values_delta]))
+        res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
+        res_dict["key"].append(blocks_type[target_column])
+        
+        root_cause = {}
+        root_cause["root_cause"] = target_column
+        root_cause["starting_time"] = start_time
+        root_cause["new_value"] = end_value
+        root_cause["transition_type"] = type_of_corruption
+    else:
+        res_dict = None
+        root_cause = {}
     return res_dict, root_cause
     
 
@@ -223,15 +229,18 @@ def generate_data(mle,  uST=None,  override_stop_time = None, diagram_dir=None,s
     res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
     shutil.copy("simulink_model_original.slx", "simulink_model.slx")
     # Make a copy of time_varying_parameters
-    time_varying_parameters_initial = time_varying_parameters.copy()
-    for key in time_varying_parameters_initial.keys():
-        if key in ["identifier","key"]:
-            continue
-        else:
-            new = []
-            for entry in time_varying_parameters_initial[key]:
-                new.append(matlab.double(entry[0][0]))
-            time_varying_parameters_initial[key] = new
+    if time_varying_parameters:
+        time_varying_parameters_initial = time_varying_parameters.copy()
+        for key in time_varying_parameters_initial.keys():
+            if key in ["identifier","key"]:
+                continue
+            else:
+                new = []
+                for entry in time_varying_parameters_initial[key]:
+                    new.append(matlab.double(entry[0][0]))
+                time_varying_parameters_initial[key] = new
+    else:
+        time_varying_parameters_initial = None
     res_healthy = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters_initial, external_input=external_input, debug=False)
 
     # Convert MATLAB results to DataFrame

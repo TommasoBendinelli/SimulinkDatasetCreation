@@ -1,5 +1,5 @@
 function res = sim_the_model(args)
-% Utility function to simulate a Simulink model (named 'the_model') with
+% Utility function to simulate a Simulink model with
 % the specified parameter and input signal values.
 % 
 % Inputs:
@@ -29,6 +29,7 @@ arguments
     args.OutputFcn (1,1)  {mustBeFunctionHandle} = @emptyFunction
     args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
     args.DiagramDataPath (1,1) string = "."   % <-- NEW: path argument
+    args.Debug (1,1) logical = true
 end
     assignin('base','uST',args.uST);
     % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
@@ -43,21 +44,20 @@ end
     
         % construct full path to file
         tvFile = fullfile(args.DiagramDataPath, "time_varying_params.mat");
-        TimeVaryingParameters = args.TimeVaryingParameters;
 
     % save each field of the struct as its own variable in the .mat
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
-    else
+    elseif args.Debug
     % --- Load from a predefined location when no new parameters are given ---
-    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250919_193546__0700ff51/diagram/time_varying_params.mat";
-
+    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250920_114435__b44a8dbf/diagram/time_varying_params.mat";
+    
     if isfile(tvFile)
         S = load(tvFile);   % returns struct
-        TimeVaryingParameters = S.TimeVaryingParameters;
     else
         warning("Time-varying parameter file not found: %s", tvFile);
     end
     end
+    TimeVaryingParameters = args.TimeVaryingParameters;
     % End of the debug part
 
     if isempty(mdlfile)
@@ -117,25 +117,41 @@ end
     for k = 1:numel(TimeVaryingParameters)
         time_value = TimeVaryingParameters.values{k};  % cell array
         identifier = TimeVaryingParameters.identifier{k};
-        key = TimeVaryingParameters.key{k};
+        key        = TimeVaryingParameters.key{k};
         if iscell(time_value), time_value = time_value{1}; end
+    
         % Set the time-varying parameter values for the simulation
         set_param(identifier, key, num2str(time_value(1)));
-
-        % Set the label before and after
-        lh  = get_param(identifier,'LineHandles');
+    
+        % Set signal names only if they don't already have one
+        lh = get_param(identifier, 'LineHandles');
+    
+        % Inport lines
         for i = 1:numel(lh.Inport)
-          L = lh.Inport(i);
-          if L~=-1, set_param(L,'Name',sprintf('%s_in%d',get_param(identifier,'Name'),i)); end
+            L = lh.Inport(i);
+            if L ~= -1 && L ~= 0
+                curr = get_param(L, 'Name');
+                if isempty(curr) || all(isspace(curr))
+                    set_param(L, 'Name', sprintf('%s_in%d', get_param(identifier,'Name'), i));
+                end
+            end
         end
+    
+        % Outport lines
         for j = 1:numel(lh.Outport)
-          L = lh.Outport(j);
-          if L~=-1, set_param(L,'Name',sprintf('%s_out%d',get_param(identifier,'Name'),j)); end
+            L = lh.Outport(j);
+            if L ~= -1 && L ~= 0
+                curr = get_param(L, 'Name');
+                if isempty(curr) || all(isspace(curr))
+                    set_param(L, 'Name', sprintf('%s_out%d', get_param(identifier,'Name'), j));
+                end
+            end
         end
+    
+        % Refresh diagram to reflect any new names
         set_param(bdroot(identifier),'SimulationCommand','update');
     end
 
-    
     %% Load the StopTime into the SimulationInput object
     if ~isnan(args.StopTime)
         si = si.setModelParameter('StopTime', num2str(args.StopTime));
@@ -235,7 +251,7 @@ end
     % Package the time and data values of the logged signals into a structure
     res = extractResults(so,nan);
 
-end % sim_the_model_using_matlab_runtime
+end 
 
 function res = extractResults(so, prevSimTime)
     % Always return a struct, even if empty
@@ -249,9 +265,6 @@ function res = extractResults(so, prevSimTime)
     for i = 1:n
         sig = ds.getElement(i);
         ts  = sig.Values;     % timeseries
-        if contains(ts.Name, 'pre_air')
-            disp('here')
-        end
         if isempty(ts) || ~isa(ts,'timeseries'); continue; end
 
         % Use the signal's logical name; sanitize for struct field name
