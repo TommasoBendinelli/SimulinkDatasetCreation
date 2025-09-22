@@ -1,0 +1,13 @@
+{
+  "context": "We are simulating the motion of a ball dropped from a height under gravity, bouncing back when it hits the ground. The dynamics include gravitational acceleration, velocity, position, and energy loss during impact (via the coefficient of restitution).",
+  "question": "During the simulation, at a certain point something not realistic happens. Can you pinpoint what happens? Also complete the answer",
+  "options": [
+    "The simulation doesn't contain any error.",
+    "The gravity constant drifts over time. Starting from {}",
+    "The gravity constant changes abruptly at {}",
+    "The coefficient of restitution is implausible at the time {}",
+    "The speed and position relationship is off from {}",
+    "Velocity reset not synchronized with position event. Bounce happens too late or too early from {}",
+    "The ground is not enforced, the ball is allowed to pass below zero position at {}"
+  ]
+}

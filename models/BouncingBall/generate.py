@@ -133,21 +133,22 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
         blocks_type[parameter] = key
     # Randomize slighly variables that can be randomized
 
-    intial_values_dict["Coefficient of Restitution"] = np.random.uniform(-0.2,-0.9)
+    sampled_coefficient= np.random.uniform(-0.2,-0.9)
+    intial_values_dict["Coefficient of Restitution"] = sampled_coefficient
     intial_values_dict["X0"] = np.random.uniform(0.5, 30)
 
     # Create the pandas dataframe
     times_full = np.arange(n_points, dtype=float) * uST
     df = pd.DataFrame({**{"time": times_full}, **{p: [v]*n_points for p, v in intial_values_dict.items()}})
 
-    # Introduce a fault programmatically 
-    faulty_simulation = [  {"target_column": "Gravitational acceleration", "values": [-3, -20, 2]}, {"target_column":"Coefficient of Restitution","values": [-1.2]}]
+    # Introduce a fault programmatically # 
+    faulty_simulation = [  {"target_column": "Gravitational acceleration", "values": [-3, -20, 2]},  {"target_column":"Coefficient of Restitution","values": [sampled_coefficient - 0.5]}]
     entry = random.choice(faulty_simulation)     # pick a random dictionary
-    end_value = random.choice(entry["values"]) * np.random.uniform(0.8,1.2)      # pick a random element from "values"
+    end_value = random.choice(entry["values"]) * np.random.uniform(0.8, 1.2)      # pick a random element from "values"
     target_column = entry["target_column"]
     # Sample a random start time
     total_length = (df["time"].max() - df["time"].min())
-    start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.2,0.8)
+    start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.2,0.4)
     length_ramp = total_length * np.random.uniform(0.01,0.1)
     end_time = start_time + length_ramp
     type_of_corruption = random.choice(["step", "linear_ramp","logistic_ramp"])
@@ -164,7 +165,6 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
     res_dict["values"].append(matlab.double([y for y in values_delta]))
     res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
     res_dict["key"].append(blocks_type[target_column])
-    
     root_cause = {}
     root_cause["root_cause"] = target_column
     root_cause["starting_time"] = start_time
@@ -292,8 +292,8 @@ def main():
 
     override_stop_time = None
     for i in range(10):
-        random.seed(i)
-        np.random.seed(i)
+        random.seed(i+10)
+        np.random.seed(i+10)
         # Make a copy of simulink_model_original
 
         # Use to read default values

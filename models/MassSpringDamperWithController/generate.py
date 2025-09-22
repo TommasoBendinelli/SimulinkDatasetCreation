@@ -106,6 +106,7 @@ def compress_df(df, target_column=""):
             change_indices.append(i)
     time_delta = df["time"][change_indices].values
     values_delta = values[change_indices].values
+    assert len(time_delta) == len(values_delta)
     return time_delta, values_delta
 
 def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict,dict]:
@@ -115,11 +116,11 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
     # Define parameters to control 
     
     blocks_type = {}
-    
+    intial_values_dict = {}
 
     # You should only change these in theory
-    intial_values_dict = {}
-    parameters = [] 
+    
+    parameters = ["Mass"] 
     faulty_simulation = [ ]
 
 
@@ -133,16 +134,23 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
             key = 'Gain'
         elif "InitialCondition" in paramInfo:
             key = 'InitialCondition'
+        elif parameter.lower() in paramInfo:
+            key = parameter.lower()
         initial_value = float(mle.get_param(identifier, key))
 
-        intial_values_dict[parameter] = initial_value
+        intial_values_dict[parameter] = initial_value 
         blocks_type[parameter] = key
     # Randomize slighly variables that can be randomized
+
+    # Change some initial condition slightly
+    intial_values_dict["Mass"] = intial_values_dict["Mass"]  * np.random.uniform(0.8,1.2)
+
 
     # Create the pandas dataframe
     times_full = np.arange(n_points, dtype=float) * uST
     df = pd.DataFrame({**{"time": times_full}, **{p: [v]*n_points for p, v in intial_values_dict.items()}})
 
+    faulty_simulation = [ {"target_column":"Mass","values": [intial_values_dict["Mass"]*1000000], "type_of_corruption_allowed": "step"}]
     # Introduce a fault programmatically 
     if faulty_simulation:
         entry = random.choice(faulty_simulation)     # pick a random dictionary
@@ -167,7 +175,7 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0) -> Tuple[dict
         res_dict["values"].append(matlab.double([y for y in values_delta]))
         res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
         res_dict["key"].append(blocks_type[target_column])
-        
+
         root_cause = {}
         root_cause["root_cause"] = target_column
         root_cause["starting_time"] = start_time
