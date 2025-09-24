@@ -49,7 +49,7 @@ end
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
     elseif args.Debug
         % --- Load from a predefined location when no new parameters are given ---
-        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250922_114359__3b8d491d/diagram/time_varying_params.mat";
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250923_191827__c998e795/diagram/time_varying_params.mat";
     
     if isfile(tvFile)
         S = load(tvFile);   % returns struct

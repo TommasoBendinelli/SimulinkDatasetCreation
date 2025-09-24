@@ -1,0 +1,101 @@
+{
+  "context": "We are simulating the motion of a ball dropped from a height under gravity, bouncing back when it hits the ground. The dynamics include gravitational acceleration, velocity, position, and energy loss during impact (via the coefficient of restitution).",
+  "question": "The simulation is correct until a given timestamp, then something physically implausible might happen. Can you pinpoint what happens, select the correct answer in the list.",
+
+  "parameters": [
+    {
+      "name": "X0",
+      "identifier": "simulink_model_original/X0",
+      "key": "Value",
+      "initial_sampling": { "type": "uniform", "min": 0.5, "max": 30.0 }
+    },
+    {
+      "name": "Coefficient of Restitution",
+      "identifier": "simulink_model_original/Coefficient of Restitution",
+      "key":"Gain",
+      "initial_sampling": { "type": "uniform", "min": -0.6, "max": -1.0 }
+    },
+    {
+      "name": "Gravitational acceleration",
+      "identifier": "simulink_model_original/Gravitational acceleration",
+      "key": "Value",
+      "initial_sampling": { "type": "uniform", "min": -9.81, "max": -9.81 }
+    }
+  ],
+
+  "time_grid": {
+    "uST": 0.1,
+    "stop_time": 30.0,
+    "fault_window": {
+      "start_fraction_range": [0.2, 0.4],
+      "duration_fraction_range": [0.01, 0.1]
+    }
+  },
+
+  "fault_options": [
+    {
+      "id": "no_error",
+      "text": "The simulation doesn't contain any error.",
+      "target_column": -1,
+      "target_parameters": []
+    },
+    {
+      "id": "gravity_drift",
+      "text": "The gravity constant drifting over time. Starting from {} s",
+      "fault": {
+        "parameter": "simulink_model_original/Gravitational acceleration",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp"],
+        "value_candidates": [{ "type": "uniform", "min": 10, "max": -6 }],
+        "placeholders": ["start_time"]
+      }
+    },
+    {
+      "id": "gravity_step",
+      "text": "The gravity constant changes abruptly at {} s",
+      "fault": {
+        "parameter": "simulink_model_original/Gravitational acceleration",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 10, "max": -6 }],
+        "placeholders": ["time"]
+      }
+    },
+    {
+      "id": "restitution_implausible",
+      "text": "The coefficient of restitution changes implausibly at the time {} s",
+      "fault": {
+        "parameter": "simulink_model_original/Coefficient of Restitution",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": -2, "max": -1}],
+        "placeholders": ["time"]
+      }
+    },
+    {
+      "id": "restitution_implausible",
+      "text": "The ball stops boucing completely implausibly at the time {} s",
+      "fault": {
+        "parameter": "simulink_model_original/Coefficient of Restitution",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 0, "max": -1}],
+        "placeholders": ["time"]
+      }
+    },
+    {
+      "id": "speed_position_off",
+      "text": "The speed and position relationship is off from {} s",
+      "target_parameters": "",
+      "fault": null
+    },
+    {
+      "id": "velocity_reset_desync",
+      "text": "Velocity reset not synchronized with position event. Bounce happens too late or too early from {} s",
+      "target_parameters": "",
+      "fault": null
+    },
+    {
+      "id": "ground_penetration",
+      "text": "The ground is not enforced, the ball is allowed to pass below zero position at {} s",
+      "target_parameters": "",
+      "fault": null
+    }
+  ]
+}

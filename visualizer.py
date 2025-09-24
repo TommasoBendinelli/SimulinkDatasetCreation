@@ -22,7 +22,7 @@ def load_run(run_path: str):
 
     # metadata
     meta = {}
-    mp = p / "metadata.json"
+    mp = p / "metadata_task.json"
     if mp.exists():
         try:
             meta = json.loads(mp.read_text(encoding="utf-8"))
@@ -31,23 +31,8 @@ def load_run(run_path: str):
 
     # data
     df: Optional[pd.DataFrame] = None
-    pq = p / "data.parquet"
-    if pq.exists():
-        try:
-            df = pd.read_parquet(pq)
-        except Exception as e:
-            st.warning(f"Failed to read Parquet ({pq}): {e}")
-
-    if df is None:
-        csv_head = p / "data_head.csv.gz"
-        if csv_head.exists():
-            try:
-                df = pd.read_csv(csv_head, index_col=0)
-            except Exception as e:
-                st.warning(f"Failed to read CSV head ({csv_head}): {e}")
-
-    if df is None:
-        return pd.DataFrame(), meta, "No readable data file found (data.parquet or data_head.csv.gz)."
+    pq = p / "data.csv"
+    df = pd.read_csv(pq)
 
     # index hygiene
     if df.index.name is None:

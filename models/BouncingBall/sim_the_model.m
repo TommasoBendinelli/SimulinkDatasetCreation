@@ -49,10 +49,11 @@ end
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
     elseif args.Debug
     % --- Load from a predefined location when no new parameters are given ---
-    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250920_114435__b44a8dbf/diagram/time_varying_params.mat";
+    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250923_194449__9501cdaa/diagram/time_varying_params.mat";
     
     if isfile(tvFile)
         S = load(tvFile);   % returns struct
+        args.TimeVaryingParameters = S.TimeVaryingParameters;
     else
         warning("Time-varying parameter file not found: %s", tvFile);
     end
@@ -226,16 +227,17 @@ end
     %% OutputFcn
     function locPostStepFcn(simTime)
         for k = 1:numel(TimeVaryingParameters)
-            identifier = TimeVaryingParameters.identifier{k};
             times = TimeVaryingParameters.time{k};
             values = TimeVaryingParameters.values{k};
             seens = TimeVaryingParameters.seen{k};
-            key =  TimeVaryingParameters.key{k};
+            
             
             subset = values(times <= simTime & seens == 0);
             mask = (times <= simTime & seens == 0);
             if numel(subset) > 0
                 assert(numel(subset) == 1);
+                identifier = TimeVaryingParameters.identifier{k};
+                key =  TimeVaryingParameters.key{k};
                 % Here 'd' must be defined or replaced by the actual value you want
                 set_param(identifier, key, num2str(subset));
                 % mark as seen
