@@ -142,13 +142,9 @@ if load_clicked or run_path:
     # Time & resampling controls
     tmin, tmax = float(df.index.min()), float(df.index.max())
     st.subheader("Time & Resampling")
-    t0, t1 = st.slider(
-        "Plot window (seconds)",
-        min_value=tmin,
-        max_value=tmax,
-        value=(tmin, tmax),
-        step=max((tmax - tmin) / 1000.0, 1e-6),
-    )
+    t0 = float(st.text_input("start", value=str(tmin)))
+    t1 = float(st.text_input("finish", value=str(tmax)))
+
     cols = st.columns(3)
     with cols[0]:
         resample_rule = st.text_input("Resample (optional)", value="", placeholder="e.g., 50ms, 200ms, 1s").strip() or None

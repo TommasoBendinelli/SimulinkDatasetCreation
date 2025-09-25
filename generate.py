@@ -46,7 +46,7 @@ def get_time_series(res: Dict, assuming_all_scalar: bool = True) -> pd.DataFrame
     # build one Series per (non-temporary) key
     series = [block_to_series(name, block)
               for name, block in res.items()
-              if "Signal_" not in name]
+              if not name in ["OperatingPoint"] or "Signal_" in name]
     if not series:
         return pd.DataFrame()
     # outer-join on the union of all time points
@@ -151,7 +151,7 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
     root_cause = {}
     if "fault" in error:
         sample_strategy = random.choice(error['fault']['value_candidates'])
-        end_value = 0 #sample_value(sample_strategy)
+        end_value = sample_value(sample_strategy)
         target_column = error['fault']["parameter"]
         # Sample a random start time
         start_fault_window = metadata["time_grid"]["fault_window"]["start_fraction_range"][0]
@@ -160,7 +160,7 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
         duration_fract_max = metadata["time_grid"]["fault_window"]["duration_fraction_range"][1]
 
         total_length = (df["time"].max() - df["time"].min())
-        start_time = 0.5 # np.random.uniform(start_fault_window,end_fault_window)
+        start_time = np.random.uniform(start_fault_window,end_fault_window)
         duration_length = total_length * np.random.uniform(duration_fract_min,duration_fract_max)
         end_time = start_time + duration_length
         available_corruptions = error['fault']['allowed_corruption_types']

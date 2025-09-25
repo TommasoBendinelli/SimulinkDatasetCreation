@@ -1,362 +1,425 @@
 function res = sim_the_model(args)
-% Utility function to simulate a Simulink model with
-% the specified parameter and input signal values.
-% 
+% Utility function to simulate a Simulink model with piecewise runs:
+% whenever a TimeVaryingParameter is scheduled to change, we stop,
+% apply the change (between runs), and resume from the saved operating point.
+%
 % Inputs:
-%    StopTime:
-%       Simulation stop time, default is nan
-%    TunableParameters
-%       A struct where the fields are the tunanle referenced
-%       workspace variables with the values to use for the
-%       simulation.
-%    ExternalInput:
-%       External Input signal, defualt is empty 
-%    Values of nan or empty for the above inputs indicate that sim should
-%    run with the default values set in the model.
-% 
+%   uST, StopTime, TunableParameters, ExternalInput, TimeVaryingParameters,
+%   ConfigureForDeployment, DiagramDataPath, Debug
+%
 % Outputs:
-%    res: A structure with the time and data values of the logged signals.
-
-% By: Tommaso Bendinelli 11-Sep-2025, heavily based on code from Murali Yeddanapudi, 20-Feb-2022
+%   res: struct with concatenated logged signals across all segments
+%        and the final OperatingPoint in res.OperatingPoint.
+%
+% By: Tommaso Bendinelli 11-Sep-2025 (segmented-run version)
 
 arguments
     args.uST (1,1) double = 0.1
     args.StopTime (1,1) double = nan
     args.TunableParameters = []
-    args.ExternalInput = []   % map key/value
-    args.TimeVaryingParameters = []
+    args.ExternalInput = []           % struct of inportName -> [N x d] values
+    args.TimeVaryingParameters = []   % struct with fields: identifier,key,time,values,seen (cell arrays)
     args.ConfigureForDeployment (1,1) {mustBeNumericOrLogical} = true
-    args.OutputFcn (1,1)  {mustBeFunctionHandle} = @emptyFunction
-    args.OutputFcnDecimation (1,1) {mustBeInteger, mustBePositive} = 1
-    args.DiagramDataPath (1,1) string = "."   % <-- NEW: path argument
+    args.DiagramDataPath (1,1) string = "."
     args.Debug (1,1) logical = true
 end
+
     assignin('base','uST',args.uST);
-    % --- Load the model (don’t assume it’s open when using MATLAB Engine) -----
-    model_name = 'simulink_model';              % base name (no .slx)
+
+    % --- Model discovery / load ---
+    model_name = 'simulink_model';
     mdlfile = which([model_name '.slx']);
-    % Just use to make our life easier to debug, if we are running with python this will be true and then we are saving the .mat file, otherwise we load the .mat file
-    if ~isempty(args.TimeVaryingParameters)
-        % make sure output folder exists
-        if ~isfolder(args.DiagramDataPath)
-            mkdir(args.DiagramDataPath);
-        end
-    
-        % construct full path to file
-        tvFile = fullfile(args.DiagramDataPath, "time_varying_params.mat");
-
-    % save each field of the struct as its own variable in the .mat
-    save(tvFile, "-struct", "args", "TimeVaryingParameters");
-    elseif args.Debug
-        % --- Load from a predefined location when no new parameters are given ---
-        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250924_213839__625b028e/diagram/time_varying_params.mat";
-        args.StopTime = 10;
-    if isfile(tvFile)
-        S = load(tvFile);   % returns struct
-        args.TimeVaryingParameters = S.TimeVaryingParameters;
-    else
-        warning("Time-varying parameter file not found: %s", tvFile);
-    end
-    end
-    TimeVaryingParameters = args.TimeVaryingParameters;
-    % End of the debug part
-
     if isempty(mdlfile)
         error("sim_the_model:ModelNotFound", ...
-            "Could not find %s.slx on the MATLAB path. Current folder: %s", ...
-            model_name, pwd);
+              "Could not find %s.slx on the MATLAB path. Current folder: %s", ...
+              model_name, pwd);
     end
-
     if ~bdIsLoaded(model_name)
         load_system(model_name);
     end
-    si = Simulink.SimulationInput(model_name);
-    si = si.setVariable('uST', args.uST);
 
-    
-
-     
-    % register the post-step callback
-    if ~isequal(args.OutputFcn, @emptyFunction) || true        % you want locPostStepFcn
-        si = simulink.compiler.setPostStepFcn( ...
-                si, @locPostStepFcn, 'Decimation', args.OutputFcnDecimation);  % <-- add
-    end
-    % Find all subsystems in the model (excluding library-linked ones)
-    set(gcf,'PaperType','A4')
-    subs = find_system(model_name, ...
-    'LookUnderMasks','all', ...
-    'FollowLinks','off', ...
-    'BlockType','SubSystem');
-    subs = [model_name; subs];
-    % Optional: set page layout for the model prints
-    set_param(model_name, 'PaperOrientation','landscape');  % 'portrait' or 'landscape'
-    set_param(model_name, 'PaperPositionMode','auto');
-    
-    
-    %%% Creating Diagram
-    for k = 1:numel(subs)
-        s = subs{k};
-
-        % Skip library-linked subsystems if any slipped through
-        % if ~strcmp(get_param(s,'LinkStatus'),'none'); continue; end
-
-        % Make a safe filename that reflects the full path
-        safeName = regexprep(s, '[^a-zA-Z0-9_-]', '_');  % replace / spaces etc.
-        pngPath  = fullfile(args.DiagramDataPath, [safeName '.png']);
-
-        % Print the subsystem diagram to PNG
-        % Note: pass the system path via -s<path>
-        try
-            print(['-s' s], '-dpng', pngPath);
-            fprintf('Saved: %s\n', pngPath);
-        catch ME
-            warning('Could not print %s: %s', s, ME.message);
-        end
-    end
-   
-    % Go through each Time Varying Parameter and set the first value
-    for k = 1:numel(TimeVaryingParameters)
-        time_value = TimeVaryingParameters.values{k};  % cell array
-        identifier = TimeVaryingParameters.identifier{k};
-        key        = TimeVaryingParameters.key{k};
-        if iscell(time_value), time_value = time_value{1}; end
-    
-        % Set the time-varying parameter values for the simulation
-        set_param(identifier, key, num2str(time_value(1)));
-    
-        % Set signal names only if they don't already have one
-        lh = get_param(identifier, 'LineHandles');
-    
-        % Inport lines
-        for i = 1:numel(lh.Inport)
-            L = lh.Inport(i);
-            if L ~= -1 && L ~= 0
-                curr = get_param(L, 'Name');
-                if isempty(curr) || all(isspace(curr))
-                    set_param(L, 'Name', sprintf('%s_in%d', get_param(identifier,'Name'), i));
-                end
-            end
-        end
-    
-        % Outport lines
-        for j = 1:numel(lh.Outport)
-            L = lh.Outport(j);
-            if L ~= -1 && L ~= 0
-                curr = get_param(L, 'Name');
-                if isempty(curr) || all(isspace(curr))
-                    set_param(L, 'Name', sprintf('%s_out%d', get_param(identifier,'Name'), j));
-                end
-            end
-        end
-    
-        % Refresh diagram to reflect any new names
-        set_param(bdroot(identifier),'SimulationCommand','update');
-    end
-
-    %% Load the StopTime into the SimulationInput object
+    % --- Resolve StopTime (absolute) ---
     if ~isnan(args.StopTime)
-        si = si.setModelParameter('StopTime', num2str(args.StopTime));
-    end
-    
-    %% Load the specified tunable parameters into the simulation input object
-    if isstruct(args.TunableParameters) 
-        tpNames = fieldnames(args.TunableParameters);
-        for itp = 1:numel(tpNames)
-            tpn = tpNames{itp};
-            tpv = args.TunableParameters.(tpn);
-            si = si.setVariable(tpn, tpv);
+        Tfinal = args.StopTime;
+    else
+        st = get_param(model_name,'StopTime');
+        Tfinal = str2double(st);
+        if isnan(Tfinal)
+            error("sim_the_model:StopTimeRequired", ...
+                  "Provide a numeric StopTime or set a numeric model StopTime.");
         end
     end
+    if Tfinal <= 0
+        error("sim_the_model:BadStopTime", "StopTime must be > 0.");
+    end
 
-    
-   
-    %% disp(args.ExternalInput)
-    ExternalInput = args.ExternalInput;
-    %% Load the external input into the SimulationInput object
-    if ~isempty(ExternalInput)
-        % In the model, the external input u is a discrete signal with sample
-        % time 'uST'. Hence the time points where it is sampled are set, i.e.,
-        % they are multiples of uST: 0, uST, 2*uST, 3*uST, .. We only specify
-        % the data values here using the struct with empty time field as
-        % described in Guy's blog post:
-        % https://blogs.mathworks.com/simulink/2012/02/09/using-discrete-data-as-an-input-to-your-simulink-model/
-        
-        % Find all Inport blocks
-        inports = find_system(model_name, 'BlockType', 'Inport');
-        top_inports = inports( cellfun(@(x) count(x,'/')==1, inports) );
-        names = cellfun(@(x) extractAfter(x, '/'), top_inports, 'UniformOutput', false);
-        
-        % Check that the names matchex the names of ExternalInput
-        extData = cell(numel(names),1);
-           
-        % Check that the length of ExternalInput and names is the same,
-        assert(numel(names) == numel(fieldnames(ExternalInput)), ...
-            'Number of ExternalInput signals (%d) does not match number of Inports (%d).', ...
-            numel(fieldnames(ExternalInput)), numel(names));
-        for i = 1:numel(names)
-            key = names{i};      
-            idx = find(strcmp(ExternalInput(:,1), key), 1);
-            if numel(idx)
-                error('Missing ExternalInput for Inport: %s', key);
+    % --- Create diagram output folder if needed ---
+    if ~isfolder(args.DiagramDataPath)
+        mkdir(args.DiagramDataPath);
+    end
+
+    % --- (Optional) Save time-varying params to file or load a debug default ---
+    if ~isempty(args.TimeVaryingParameters)
+        tvFile = fullfile(args.DiagramDataPath, "time_varying_params.mat");
+        TimeVaryingParameters = args.TimeVaryingParameters;
+        S = struct('TimeVaryingParameters', TimeVaryingParameters);
+        save(tvFile, '-struct', 'S');
+    elseif args.Debug
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250925_101440__5b343565/diagram/time_varying_params.mat";
+        if isfile(tvFile)
+            L = load(tvFile);
+            if isfield(L,'TimeVaryingParameters')
+                TimeVaryingParameters = L.TimeVaryingParameters;
+            else
+                warning("Debug load: 'TimeVaryingParameters' not found in %s", tvFile);
+                TimeVaryingParameters = [];
             end
-            vals = ExternalInput.(key);
-            % vals = ExternalInput{idx,2}(:);          % column vector
-            extData{i} = vals; %%%
-            % struct( ...
-                % 'time', [], ...
-                % 'signals', struct('values', vals, 'dimensions', 1) );
+            args.StopTime = 10;
+            Tfinal = 10;
+        else
+            warning("Time-varying parameter file not found: %s", tvFile);
+            TimeVaryingParameters = [];
         end
-        
-        % Extract the signals (second column of ExternalInput)
-        signalMatrix = cell2mat(extData);   % gives [50001 x 3] because cell2mat stacks column-wise
-        N = size(signalMatrix, 2);   % number of samples
-        nSignals = size(signalMatrix, 1);  % number of Inports/signals
-     
-        uStruct.time = [];
-        uStruct.signals.dimensions = 2;
-        % values needs to be column vector
-        for k = 1:nSignals
-            uStruct.signals(k).values     = signalMatrix(k, :).';  % N×1
-            uStruct.signals(k).dimensions = 1;                      % scalar input
-        end
-
-        si.ExternalInput = uStruct;
+    else
+        TimeVaryingParameters = [];
     end
 
+    % --- Snapshot model diagrams (best-effort; non-fatal) ---
+    try
+        subs = find_system(model_name, 'LookUnderMasks','all', 'FollowLinks','off', 'BlockType','SubSystem');
+        subs = [{model_name}; subs(:)];
+        set_param(model_name, 'PaperOrientation','landscape', 'PaperPositionMode','auto');
+        for k = 1:numel(subs)
+            s = subs{k};
+            safeName = regexprep(s, '[^a-zA-Z0-9_-]', '_');
+            pngPath  = fullfile(args.DiagramDataPath, [safeName '.png']);
+            try
+                print(['-s' s], '-dpng', pngPath);
+                fprintf('Saved: %s\n', pngPath);
+            catch ME
+                warning('Could not print %s: %s', s, ME.message);
+            end
+        end
+    catch
+        % ignore
+    end
 
-    %% OutputFcn
-    function locPostStepFcn(simTime)
-        persistent lastPrintedTime
-        if simTime == 0
-            return 
-        end
-        
-        if isempty(lastPrintedTime)
-            lastPrintedTime = -10; % so we print at t=0 as well
-        end
-    
-        % Print every 10 seconds
-        if floor(simTime/10) > floor(lastPrintedTime/10)
-            fprintf('--- Reached %.0f seconds ---\n', floor(simTime/10)*10);
-            lastPrintedTime = simTime;
-        end
-
-        for k = 1:numel(TimeVaryingParameters)
+    % --- Apply initial values for each time-varying parameter (t=0) ---
+    if ~isempty(TimeVaryingParameters)
+        for k = 1:numel(TimeVaryingParameters.identifier)
             identifier = TimeVaryingParameters.identifier{k};
-            times = TimeVaryingParameters.time{k};
-            values = TimeVaryingParameters.values{k};
-            seens = TimeVaryingParameters.seen{k};
-            key =  TimeVaryingParameters.key{k};
-            
-            subset = values(times <= simTime & seens == 0);
-            mask = (times <= simTime & seens == 0);
-            if numel(subset) > 0
-                if (sum(mask) > 1)
-                    % If there are multiple ones only keep the last one
-                    % Find indices of 1s
-                    idx = find(mask);
-                    
-                    % Keep only the last one
-                    if ~isempty(idx)
-                        mask(:) = 0;        % reset all to 0
-                        mask(idx(end)) = 1; % set only the last one to 1
-                        subset = subset(end);
-                    end
-                end
-                assert(numel(subset) == 1);
-                % Here 'd' must be defined or replaced by the actual value you want
-                set_param(identifier, key, num2str(subset));
-                % mark as seen
-                TimeVaryingParameters.seen{k}(mask) = 1;
-                disp(identifier)
-                disp(key)
-                disp(num2str(subset))
-                
+            key        = TimeVaryingParameters.key{k};
+            times      = TimeVaryingParameters.time{k};
+            values     = TimeVaryingParameters.values{k};
+            if iscell(values), values = values{1}; end
+
+            % pick the value scheduled at t<=0 if present; otherwise first value
+            idx0 = find(times <= 0);
+            if ~isempty(idx0)
+                v0 = values(idx0(end));
+            else
+                v0 = values(1);
             end
+            set_param(identifier, key, num2str(v0));
+            % ensure 'seen' is initialized
+            if ~isfield(TimeVaryingParameters,'seen') || numel(TimeVaryingParameters.seen) < k || isempty(TimeVaryingParameters.seen{k})
+                TimeVaryingParameters.seen{k} = zeros(size(times));
+            end
+            % mark the last t<=0 event as seen (if any)
+            if ~isempty(idx0)
+                m = false(size(times));
+                m(idx0(end)) = true;
+                TimeVaryingParameters.seen{k}(m) = 1;
             end
         end
-        
-    %% call sim
-    so = sim(si);
-    
-    %% Extract the simulation results
-    % Package the time and data values of the logged signals into a structure
-    res = extractResults(so,nan);
+        set_param(bdroot(model_name),'SimulationCommand','update');
+    end
 
-end 
+    % --- Prepare External Input (explicit time stamps; safer for segmented runs) ---
+    uStruct = [];
+    if ~isempty(args.ExternalInput)
+        % Get top-level inports
+        inports = find_system(model_name, 'SearchDepth',1, 'BlockType','Inport');
+        inNames = cellfun(@(x) get_param(x,'Name'), inports, 'UniformOutput', false);
+
+        % Normalize ExternalInput to struct (supports containers.Map)
+        ExternalInput = normalizeExternalInput(args.ExternalInput);
+
+        % Validate presence and lengths; build time vector based on uST
+        % Expect same number of samples for all provided signals
+        N = [];
+        for i = 1:numel(inNames)
+            nm = inNames{i};
+            if ~isfield(ExternalInput, nm)
+                error("ExternalInputMissing:Inport", "Missing ExternalInput for Inport: %s", nm);
+            end
+            vals = ExternalInput.(nm);
+            if isvector(vals), vals = vals(:); end
+            if isempty(N)
+                N = size(vals,1);
+            elseif size(vals,1) ~= N
+                error("ExternalInputMismatch:Length", "All ExternalInput signals must share the same number of samples.");
+            end
+        end
+        if N < 1
+            error("ExternalInputEmpty", "ExternalInput provided but contains no samples.");
+        end
+
+        % Ensure inputs cover Tfinal
+        tVec = (0:N-1).' * args.uST;
+        if tVec(end) < Tfinal
+            error("ExternalInputTooShort", ...
+                 "ExternalInput length (%.3fs) is shorter than StopTime (%.3fs).", tVec(end), Tfinal);
+        end
+
+        % Build uStruct with explicit time
+        uStruct.time = tVec;
+        for i = 1:numel(inNames)
+            nm = inNames{i};
+            vals = ExternalInput.(nm);
+            vals = ensure2D(vals);  % N x D
+            uStruct.signals(i).values     = vals; %#ok<AGROW>
+            uStruct.signals(i).dimensions = size(vals,2); %#ok<AGROW>
+        end
+    end
+
+    % --- Build change schedule (absolute times) ---
+    changeTimes = [];
+    if ~isempty(TimeVaryingParameters)
+        for k = 1:numel(TimeVaryingParameters.identifier)
+            times = TimeVaryingParameters.time{k};
+            if isempty(times),  continue; end
+            % consider only changes after current (0) and up to Tfinal
+            changeTimes = [changeTimes; times(:)]; %#ok<AGROW>
+        end
+        % unique, sorted, keep only (0, Tfinal]
+        changeTimes = unique(changeTimes);
+        changeTimes = changeTimes(changeTimes > 0 & changeTimes <= Tfinal);
+    end
+
+    % --- Segment boundaries: each change triggers a stop->apply->resume ---
+    % We'll run segments up to each change time; after each segment we apply
+    % the value(s) scheduled at exactly that time; then continue.
+    segStops = unique([changeTimes(:); Tfinal]);
+    prevStop = 0;
+
+    % --- Prepare accumulation of results ---
+    res = struct();
+    op = [];   % operating point carried between segments
+
+    % --- Iterate segments ---
+    for iseg = 1:numel(segStops)
+        tStop = segStops(iseg);
+
+        % Prepare SimulationInput for this segment
+        si = Simulink.SimulationInput(model_name);
+        si = si.setVariable('uST', args.uST);
+        si = si.setModelParameter('StopTime', num2str(tStop));
+        si = si.setModelParameter('SaveOperatingPoint','on');
+
+        % Set tunable parameters
+        if isstruct(args.TunableParameters)
+            tpNames = fieldnames(args.TunableParameters);
+            for itp = 1:numel(tpNames)
+                tpn = tpNames{itp};
+                tpv = args.TunableParameters.(tpn);
+                si = si.setVariable(tpn, tpv);
+            end
+        end
+
+        % External input (explicit time)
+        if ~isempty(uStruct)
+            si = si.setExternalInput(uStruct);
+        end
+
+        % Resume from prior operating point if available
+        if ~isempty(op)
+            try
+                si = si.setInitialState(op);
+            catch ME
+                warning("Incompatible operating point (%s). This segment will start cold.", ME.message);
+            end
+        end
+
+        % Run the segment
+        try
+            so = sim(si);
+        catch ME
+            % If initial state caused failure, retry cold once
+            if contains(ME.message, 'initial') || contains(ME.message,'OperatingPoint')
+                warning("Retrying segment %.6g without initial state: %s", tStop, ME.message);
+                siNoOP = removeInitialState(si);
+                so = sim(siNoOP);
+            else
+                rethrow(ME);
+            end
+        end
+
+        % Accumulate results (slice to avoid duplicate samples at the join)
+        segRes = extractResults(so, prevStop);
+        res = mergeResults(res, segRes);
+
+        % Stash operating point for next segment
+        if isprop(so, 'xFinal') && ~isempty(so.xFinal)
+            op = so.xFinal;
+        else
+            op = [];
+        end
+
+        % After hitting tStop, apply any changes scheduled at exactly tStop
+        if iseg < numel(segStops)  % no need to apply after the last (unless you want to stage post-final changes)
+            [TimeVaryingParameters, didChange] = applyChangesAtTime(TimeVaryingParameters, tStop);
+            if didChange
+                % Recompile after parameter edits
+                set_param(bdroot(model_name),'SimulationCommand','update');
+            end
+        end
+
+        prevStop = tStop;
+    end
+
+    % Expose final OP to caller
+    res.OperatingPoint = op;
+end
+
+% === Helpers ===============================================================
+
+function ExternalInput = normalizeExternalInput(E)
+    if isa(E, 'containers.Map')
+        ExternalInput = struct();
+        k = E.keys;
+        for i = 1:numel(k)
+            ExternalInput.(k{i}) = E(k{i});
+        end
+    elseif isstruct(E)
+        ExternalInput = E;
+    else
+        error("ExternalInputType", "ExternalInput must be a struct or containers.Map.");
+    end
+end
+
+function M = ensure2D(v)
+    % Returns N x D
+    if isvector(v)
+        M = v(:);
+    else
+        M = v;
+    end
+end
+
+function si2 = removeInitialState(si1)
+    % Remove initial state from a SimulationInput (best-effort)
+    si2 = si1;
+    try
+        si2 = si2.setInitialState([]); % newer releases accept []
+    catch
+        % no-op if not supported; construct a fresh one would be plan B
+    end
+end
+
+function tf = appeq(a,b)
+    % approximate equality for event times
+    tf = abs(a - b) <= max(1e-9, eps(max(abs(a),abs(b))) * 10);
+end
+
+function [TVP, didChange] = applyChangesAtTime(TVP, tEvent)
+    didChange = false;
+    if isempty(TVP); return; end
+    for k = 1:numel(TVP.identifier)
+        identifier = TVP.identifier{k};
+        key        = TVP.key{k};
+        times      = TVP.time{k};
+        values     = TVP.values{k};
+        if iscell(values), values = values{1}; end
+        if ~isfield(TVP,'seen') || isempty(TVP.seen{k})
+            TVP.seen{k} = zeros(size(times));
+        end
+
+        % indices that are exactly at tEvent and not yet applied
+        idx = find(arrayfun(@(tt) appeq(tt, tEvent), times) & TVP.seen{k}==0);
+        if isempty(idx), continue; end
+
+        % If multiple at same time, keep the last
+        idx = idx(end);
+        v = values(idx);
+
+        % Apply change
+        set_param(identifier, key, num2str(v));
+        TVP.seen{k}(idx) = 1;
+        didChange = true;
+    end
+end
 
 function res = extractResults(so, prevSimTime)
     % Always return a struct, even if empty
     res = struct();
 
-    % 1) Get the signal-logging Dataset regardless of its property name
-    ds = getSignalLoggingDataset(so);  % helper below
-
-    % 2) Iterate dataset elements (each is a Simulink.SimulationData.Signal)
+    ds = getSignalLoggingDataset(so);
     n = ds.numElements;
     for i = 1:n
         sig = ds.getElement(i);
-        ts  = sig.Values;     % timeseries
+        ts  = sig.Values;
         if isempty(ts) || ~isa(ts,'timeseries'); continue; end
 
-        % Use the signal's logical name; sanitize for struct field name
         name = sig.Name;
         if isempty(name); name = sprintf('Signal_%d', i); end
         fname = matlab.lang.makeValidName(name);
 
-        % 3) Slice by prevSimTime if provided
         if isfinite(prevSimTime)
             idx = ts.Time > prevSimTime;
         else
             idx = true(size(ts.Time));
         end
 
-        % 4) Store into result struct
         res.(fname).Time = ts.Time(idx);
-        % Data can be vector/matrix; keep shape
         res.(fname).Data = ts.Data(idx, :);
     end
 end
 
+function res = mergeResults(res, segRes)
+    if isempty(fieldnames(segRes))
+        return
+    end
+    if isempty(fieldnames(res))
+        res = segRes;
+        return
+    end
+    f = fieldnames(segRes);
+    for i = 1:numel(f)
+        fn = f{i};
+        if ~isfield(res, fn)
+            res.(fn) = segRes.(fn);
+        else
+            res.(fn).Time = [res.(fn).Time; segRes.(fn).Time];
+            res.(fn).Data = [res.(fn).Data; segRes.(fn).Data];
+        end
+    end
+end
+
 function ds = getSignalLoggingDataset(so)
-    % Try the configured Signal Logging name first (most precise)
+    % Try configured Signal Logging name first
     ds = [];
     try
         mdl = so.SimulationMetadata.ModelInfo.ModelName;
-        logName = get_param(mdl, 'SignalLoggingName');  % e.g. 'logsout' or custom
+        logName = get_param(mdl, 'SignalLoggingName');  % e.g. 'logsout'
         if isprop(so, logName)
             cand = so.(logName);
             if isa(cand, 'Simulink.SimulationData.Dataset')
-                ds = cand;
-                return
+                ds = cand;  return
             end
         end
     catch
-        % fall through to scan
+        % fall through
     end
 
-    % Fallback: scan SimulationOutput properties for the first Dataset
-    props = who(so);  % editable/logged props
+    % Fallback: first Dataset on SimulationOutput
+    props = who(so);
     for k = 1:numel(props)
         val = so.(props{k});
         if isa(val, 'Simulink.SimulationData.Dataset')
-            % Prefer a Dataset that looks like signal logging (optional heuristic)
-            % If you want strictly the *first* dataset, just return here.
-            ds = val;
-            return
+            ds = val;  return
         end
     end
-
     error('extractResults:NoDatasetFound', ...
-          'No Simulink.SimulationData.Dataset found in the SimulationOutput.');
-end
-
-function mustBeFunctionHandle(fh)
-    if ~isa(fh,'function_handle') && ~ischar(fh) && ~isstring(fh)
-        throwAsCaller(error("Must be a function handle"));
-    end
-end
-
-
-function emptyFunction
+        'No Simulink.SimulationData.Dataset found in the SimulationOutput.');
 end
