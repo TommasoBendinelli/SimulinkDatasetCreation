@@ -70,8 +70,14 @@ def generate_tunable_parameters() -> Dict:
 def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols: int = 6):
     # 1) primary data (Parquet)
     csv_path = run_dir / "data.csv"
-    df.to_csv(csv_path)  # requires pyarrow or fastparquet
+    df["time"] = df.index
+    # Reset index
+    df = df.reset_index(drop=True)
+    df.to_csv(csv_path,  index=False)
 
+    # Just for the visualization
+    df.index = df["time"]
+    df.drop("time",inplace=True, axis=1)
 
     # 3) quick plot preview (first few columns)
     plt.figure()
@@ -142,17 +148,39 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
     # Introduce a fault programmatically # 
     # faulty_simulation = [  {"target_column": "Gravitational acceleration", "values": [-3, -20, 2]},  {"target_column":"Coefficient of Restitution","values": [sampled_coefficient - 0.5]}]
     error = random.choice(possible_errors)     # pick a random dictionary
+    root_cause = {}
     if "fault" in error:
         sample_strategy = random.choice(error['fault']['value_candidates'])
-        end_value = sample_value(sample_strategy)
+        end_value = 0 #sample_value(sample_strategy)
         target_column = error['fault']["parameter"]
         # Sample a random start time
+        start_fault_window = metadata["time_grid"]["fault_window"]["start_fraction_range"][0]
+        end_fault_window = metadata["time_grid"]["fault_window"]["start_fraction_range"][1]
+        duration_fract_min = metadata["time_grid"]["fault_window"]["duration_fraction_range"][0]
+        duration_fract_max = metadata["time_grid"]["fault_window"]["duration_fraction_range"][1]
+
         total_length = (df["time"].max() - df["time"].min())
-        start_time = (df["time"].max() - df["time"].min()) * np.random.uniform(0.2,0.4)
-        length_ramp = total_length * np.random.uniform(0.01,0.1)
-        end_time = start_time + length_ramp
+        start_time = 0.5 # np.random.uniform(start_fault_window,end_fault_window)
+        duration_length = total_length * np.random.uniform(duration_fract_min,duration_fract_max)
+        end_time = start_time + duration_length
         available_corruptions = error['fault']['allowed_corruption_types']
         type_of_corruption = random.choice(available_corruptions)
+        
+        # --- DEBUG PRINTS ---
+        print("\n--- Fault Injection Details ---")
+        print(f"Target column        : {target_column}")
+        print(f"Sample strategy      : {sample_strategy}")
+        print(f"Chosen end value     : {end_value}")
+        print(f"Available corruptions: {available_corruptions}")
+        print(f"Selected corruption  : {type_of_corruption}")
+        print(f"Start fault window   : {start_fault_window}")
+        print(f"End fault window     : {end_fault_window}")
+        print(f"Duration fraction rng: ({duration_fract_min}, {duration_fract_max})")
+        print(f"Total signal length  : {total_length}")
+        print(f"Start time           : {start_time}")
+        print(f"Duration length      : {duration_length}")
+        print(f"End time             : {end_time}")
+        print("-------------------------------\n")
         if type_of_corruption == "linear_ramp":
             df = linear_ramp(df,target_column=target_column, start_time=start_time, end_time=end_time, end_value=end_value)
         elif type_of_corruption == "logistic_ramp":
@@ -166,15 +194,16 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
         res_dict["values"].append(matlab.double([y for y in values_delta]))
         res_dict["seen"].append(matlab.double([0 for _ in values_delta])) # This is used internally by the Matlab script, we need to set all 0 by default
         res_dict["key"].append(blocks_type[target_column])
-        root_cause = {}
         root_cause["root_cause"] = target_column
         root_cause["starting_time"] = start_time
+        root_cause["ending_time"] = end_time
         root_cause["new_value"] = end_value
         root_cause["transition_type"] = type_of_corruption
         root_cause["correct_answer"] = error["text"]
     else:
+        root_cause["correct_answer"] = error["text"]
         res_dict = None
-        root_cause = {}
+        
     return res_dict, root_cause
     
 
@@ -215,17 +244,17 @@ def run_simulation(
         mle.close_system('simulink_model', 0, nargout=0)
         return res 
 
-def generate_data(mle, uST=None,  override_stop_time = None, diagram_dir=None,seed=None):
+def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     metadata_dataset = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
     # Inputs
-    if override_stop_time:
-        stop_time = override_stop_time
-    else:
-        stop_time = float(mle.get_param("simulink_model_original", "StopTime"))
+    sanity_check(uST=uST, metadata_dataset=metadata_dataset)
+    stop_time = metadata_dataset["time_grid"]["stop_time"]
 
     external_input = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time, metadata=metadata_dataset)
     time_varying_parameters, root_cause = generate_time_varying_parameters(mle, uST=uST, stop_time=stop_time, metadata=metadata_dataset)
     shutil.copy( "simulink_model_original.slx", "simulink_model.slx")
+    print("Running simulation with fault")
+    
     res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
     shutil.copy("simulink_model_original.slx", "simulink_model.slx")
     # Make a copy of time_varying_parameters
@@ -241,6 +270,7 @@ def generate_data(mle, uST=None,  override_stop_time = None, diagram_dir=None,se
                 time_varying_parameters_initial[key] = new
     else:
         time_varying_parameters_initial = None
+    print("Running simulations with no faults")
     res_healthy = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters_initial, external_input=external_input, debug=False)
 
     # Convert MATLAB results to DataFrame
@@ -310,8 +340,7 @@ def main(index):
     
 
     # metadata_path = Path("metadata.json")
-    override_stop_time = None
-    for i in range(10):
+    for i in range(1):
         random.seed(i)
         np.random.seed(i)
         # Make a copy of simulink_model_original
@@ -320,13 +349,11 @@ def main(index):
         mle.load_system(str(root_path/ 'simulink_model_original.slx'))
         
 
-        # tunable_params = generate_tunable_parameters()
-        sanity_check(uST=uST,override_stop_time=override_stop_time)
+       
         run_dir = new_run_dir(Path(cwd) / "data", system_name=root_path.name, diagram_subdir= "diagram")
 
-        df, metadata= generate_data(mle, uST=uST, override_stop_time=override_stop_time, diagram_dir=run_dir / "diagram", seed=i)
+        df, metadata= generate_data(mle, uST=uST, diagram_dir=run_dir / "diagram", seed=i)
 
-        
         paths = save_artifacts(run_dir, df, metadata)
 
         print("Saved artifacts:")

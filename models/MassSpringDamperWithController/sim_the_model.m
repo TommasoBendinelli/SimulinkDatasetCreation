@@ -49,8 +49,8 @@ end
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
     elseif args.Debug
         % --- Load from a predefined location when no new parameters are given ---
-        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/BouncingBall/20250923_191827__c998e795/diagram/time_varying_params.mat";
-    
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250924_213839__625b028e/diagram/time_varying_params.mat";
+        args.StopTime = 10;
     if isfile(tvFile)
         S = load(tvFile);   % returns struct
         args.TimeVaryingParameters = S.TimeVaryingParameters;
@@ -226,6 +226,21 @@ end
 
     %% OutputFcn
     function locPostStepFcn(simTime)
+        persistent lastPrintedTime
+        if simTime == 0
+            return 
+        end
+        
+        if isempty(lastPrintedTime)
+            lastPrintedTime = -10; % so we print at t=0 as well
+        end
+    
+        % Print every 10 seconds
+        if floor(simTime/10) > floor(lastPrintedTime/10)
+            fprintf('--- Reached %.0f seconds ---\n', floor(simTime/10)*10);
+            lastPrintedTime = simTime;
+        end
+
         for k = 1:numel(TimeVaryingParameters)
             identifier = TimeVaryingParameters.identifier{k};
             times = TimeVaryingParameters.time{k};
@@ -253,6 +268,9 @@ end
                 set_param(identifier, key, num2str(subset));
                 % mark as seen
                 TimeVaryingParameters.seen{k}(mask) = 1;
+                disp(identifier)
+                disp(key)
+                disp(num2str(subset))
                 
             end
             end

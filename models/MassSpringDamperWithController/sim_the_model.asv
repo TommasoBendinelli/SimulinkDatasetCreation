@@ -48,9 +48,9 @@ end
     % save each field of the struct as its own variable in the .mat
     save(tvFile, "-struct", "args", "TimeVaryingParameters");
     elseif args.Debug
-    % --- Load from a predefined location when no new parameters are given ---
-    tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250924_182526__167b134c/diagram/time_varying_params.mat";
-    
+        % --- Load from a predefined location when no new parameters are given ---
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250924_210710__cee0efd4/diagram/time_varying_params.mat";
+        s
     if isfile(tvFile)
         S = load(tvFile);   % returns struct
         args.TimeVaryingParameters = S.TimeVaryingParameters;
@@ -226,23 +226,45 @@ end
 
     %% OutputFcn
     function locPostStepFcn(simTime)
-        disp(simTime)
+        persistent lastPrintedTime
+        if isempty(lastPrintedTime)
+            lastPrintedTime = -10; % so we print at t=0 as well
+        end
+    
+        % Print every 10 seconds
+        if floor(simTime/10) > floor(lastPrintedTime/10)
+            fprintf('--- Reached %.0f seconds ---\n', floor(simTime/10)*10);
+            lastPrintedTime = simTime;
+        end
+
         for k = 1:numel(TimeVaryingParameters)
+            identifier = TimeVaryingParameters.identifier{k};
             times = TimeVaryingParameters.time{k};
             values = TimeVaryingParameters.values{k};
             seens = TimeVaryingParameters.seen{k};
-            
+            key =  TimeVaryingParameters.key{k};
             
             subset = values(times <= simTime & seens == 0);
             mask = (times <= simTime & seens == 0);
             if numel(subset) > 0
+                if (sum(mask) > 1)
+                    % If there are multiple ones only keep the last one
+                    % Find indices of 1s
+                    idx = find(mask);
+                    
+                    % Keep only the last one
+                    if ~isempty(idx)
+                        mask(:) = 0;        % reset all to 0
+                        mask(idx(end)) = 1; % set only the last one to 1
+                        subset = subset(end);
+                    end
+                end
                 assert(numel(subset) == 1);
-                identifier = TimeVaryingParameters.identifier{k};
-                key =  TimeVaryingParameters.key{k};
                 % Here 'd' must be defined or replaced by the actual value you want
                 set_param(identifier, key, num2str(subset));
                 % mark as seen
                 TimeVaryingParameters.seen{k}(mask) = 1;
+                
             end
             end
         end

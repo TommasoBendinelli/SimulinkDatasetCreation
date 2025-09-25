@@ -12,15 +12,15 @@ def new_run_dir(root: Path = "runs", system_name="entry", diagram_subdir="diagra
     (run_dir / diagram_subdir).mkdir(parents=True,exist_ok=False)
     return run_dir
 
-def sanity_check(uST, override_stop_time=None):
+def sanity_check(uST, metadata_dataset=None):
+    assert metadata_dataset is not None 
     ### Efficiency 
     if uST is None:
         raise ValueError("uST and stop_time must be provided.")
     if uST <= 0:
         raise ValueError("uST must be > 0.")
-    if override_stop_time is not None and override_stop_time <= 0:
-        raise ValueError("stop_time must be > 0.")
-
+    assert 0 < metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][0] < metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][1]
+    assert metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][1] < 1
 
 def _value_cols(df: pd.DataFrame):
     return [c for c in df.columns if c != "time"]

@@ -33,15 +33,11 @@ def load_run(run_path: str):
     df: Optional[pd.DataFrame] = None
     pq = p / "data.csv"
     df = pd.read_csv(pq)
-
-    # index hygiene
-    if df.index.name is None:
-        df.index.name = "time_s"
-    try:
-        df.index = df.index.astype(float)
-    except Exception:
-        pass
+    
+    # assert this is a a column called time
+    df.index = df['time']
     df = df.sort_index()
+    df = df.drop("time",axis=1)
     return df, meta, None
 
 
