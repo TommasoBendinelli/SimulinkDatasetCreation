@@ -25,19 +25,19 @@
       "name": "PID P gain",
       "identifier": "simulink_model_original/PID Controller",
       "key": "P",
-      "initial_sampling": { "type": "uniform", "min": 0.1, "max": 150.0 }
+      "initial_sampling": { "type": "uniform", "min": 650, "max": 750}
     },
     {
       "name": "PID I gain",
       "identifier": "simulink_model_original/PID Controller",
       "key": "I",
-      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 40.0 }
+      "initial_sampling": { "type": "uniform", "min": 3500, "max": 4000}
     },
     {
       "name": "PID D gain",
       "identifier": "simulink_model_original/PID Controller",
       "key": "D",
-      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 20.0 }
+      "initial_sampling": { "type": "uniform", "min": 10, "max": 15 }
     },
     {
       "name": "Actuator gain",
@@ -84,44 +84,33 @@
 
     {
       "id": "mass_implausible_step",
-      "text": "The mass changes to an implausible value at {}",
+      "text": "The mass increased drastically",
       "fault": {
         "parameter": "simulink_model_original/Mass",
         "allowed_corruption_types": ["step"],
-        "value_candidates": [{ "type": "uniform", "min": -2.0, "max": 0.1 }],
+        "value_candidates": [{ "type": "uniform", "min": 100, "max": 400 }],
         "placeholders": ["time"]
       }
     },
 
     {
       "id": "spring_stiffness_drift",
-      "text": "The spring stiffness drifts over time, starting from {}",
+      "text": "The spring lost its stiffnes, starting from {}",
       "fault": {
         "parameter": "simulink_model_original/Spring",
         "allowed_corruption_types": ["linear_ramp", "logistic_ramp"],
-        "value_candidates": [{ "type": "uniform", "min": -100.0, "max": 50.0 }],
+        "value_candidates": [{ "type": "uniform", "min": 0, "max": 50.0 }],
         "placeholders": ["start_time"]
       }
     },
 
     {
       "id": "damper_negative_step",
-      "text": "The damper coefficient becomes negative at {}",
+      "text": "The damper lost its damping ability, starting from {}",
       "fault": {
         "parameter": "simulink_model_original/Damper",
         "allowed_corruption_types": ["step"],
-        "value_candidates": [{ "type": "uniform", "min": -10.0, "max": 0.0 }],
-        "placeholders": ["time"]
-      }
-    },
-
-    {
-      "id": "pid_sign_flip",
-      "text": "The PID feedback becomes effectively positive (P gain flips sign) at {}",
-      "fault": {
-        "parameter": "simulink_model_original/PID Controller",
-        "allowed_corruption_types": ["step"],
-        "value_candidates": [{ "type": "uniform", "min": -150.0, "max": -0.05 }],
+        "value_candidates": [{ "type": "uniform", "min": 0, "max": 2.0 }],
         "placeholders": ["time"]
       }
     },

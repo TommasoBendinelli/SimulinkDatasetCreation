@@ -46,7 +46,7 @@ def get_time_series(res: Dict, assuming_all_scalar: bool = True) -> pd.DataFrame
     # build one Series per (non-temporary) key
     series = [block_to_series(name, block)
               for name, block in res.items()
-              if not name in ["OperatingPoint"] or "Signal_" in name]
+              if not (name in ["OperatingPoint"] or "Signal_" in name)]
     if not series:
         return pd.DataFrame()
     # outer-join on the union of all time points
@@ -67,38 +67,33 @@ def generate_tunable_parameters() -> Dict:
     return res 
 
 
-def save_artifacts(run_dir: Path, df: pd.DataFrame, metadata: Dict, preview_cols: int = 6):
+def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, preview_cols: int = 6):
     # 1) primary data (Parquet)
-    csv_path = run_dir / "data.csv"
-    df["time"] = df.index
-    # Reset index
-    df = df.reset_index(drop=True)
-    df.to_csv(csv_path,  index=False)
+    if df is not None: # None only if an exception was triggered
+        csv_path = run_dir / "data.csv"
+        df["time"] = df.index
+        # Reset index
+        df = df.reset_index(drop=True)
+        df.to_csv(csv_path,  index=False)
 
-    # Just for the visualization
-    df.index = df["time"]
-    df.drop("time",inplace=True, axis=1)
+        # Just for the visualization
+        df.index = df["time"]
+        df.drop("time",inplace=True, axis=1)
 
-    # 3) quick plot preview (first few columns)
-    plt.figure()
-    if not df.empty:
-        df.iloc[:, :min(preview_cols, df.shape[1])].plot(legend=True)
-    plt.xlabel("time [s]")
-    plt.tight_layout()
-    preview_path = run_dir / "preview.png"
-    plt.savefig(preview_path, dpi=150)
-    plt.close()
+        # 3) quick plot preview (first few columns)
+        plt.figure()
+        if not df.empty:
+            df.iloc[:, :min(preview_cols, df.shape[1])].plot(legend=True)
+        plt.xlabel("time [s]")
+        plt.tight_layout()
+        preview_path = run_dir / "preview.png"
+        plt.savefig(preview_path, dpi=150)
+        plt.close()
 
     # 4) metadata sidecar (human-friendly)
     meta_path = run_dir / "metadata_task.json"
     with meta_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
-
-    return {
-        "csv": str(csv_path),
-        "preview": str(preview_path),
-        "metadata": str(meta_path),
-    }
 
 
 
@@ -171,7 +166,6 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
         print(f"Target column        : {target_column}")
         print(f"Sample strategy      : {sample_strategy}")
         print(f"Chosen end value     : {end_value}")
-        print(f"Available corruptions: {available_corruptions}")
         print(f"Selected corruption  : {type_of_corruption}")
         print(f"Start fault window   : {start_fault_window}")
         print(f"End fault window     : {end_fault_window}")
@@ -244,6 +238,46 @@ def run_simulation(
         mle.close_system('simulink_model', 0, nargout=0)
         return res 
 
+def populate_metadata(df_broken, stop_time, seed):
+    if df_broken is not None:
+        metadata = {
+            "model": "the_model",
+            "stop_time_s": stop_time,
+            "n_rows": int(df_broken.shape[0]),
+            "n_signals": int(df_broken.shape[1]) if not df_broken.empty else 0,
+            "time_start_s": float(df_broken.index.min()) if not df_broken.empty else None,
+            "time_end_s": float(df_broken.index.max()) if not df_broken.empty else None,
+            "columns": list(df_broken.columns) if not df_broken.empty else [],
+            "seed": seed,
+            "env": {
+                "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+                "pandas": pd.__version__,
+                "matplotlib": plt.matplotlib.__version__,
+                # Add MATLAB release if you like:
+                # "matlab_release": str(mle.version(nargout=1))
+            },
+        }
+    else:
+        df_broken = pd.DataFrame()
+        metadata = {
+                    "model": "the_model",
+                    "stop_time_s": stop_time,
+                    "n_rows": int(df_broken.shape[0]),
+                    "n_signals": int(df_broken.shape[1]) if not df_broken.empty else 0,
+                    "time_start_s": float(df_broken.index.min()) if not df_broken.empty else None,
+                    "time_end_s": float(df_broken.index.max()) if not df_broken.empty else None,
+                    "columns": list(df_broken.columns) if not df_broken.empty else [],
+                    "seed": seed,
+                    "env": {
+                        "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+                        "pandas": pd.__version__,
+                        "matplotlib": plt.matplotlib.__version__,
+                        # Add MATLAB release if you like:
+                        # "matlab_release": str(mle.version(nargout=1))
+                    },
+                }
+    return metadata
+
 def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     metadata_dataset = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
     # Inputs
@@ -254,8 +288,15 @@ def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     time_varying_parameters, root_cause = generate_time_varying_parameters(mle, uST=uST, stop_time=stop_time, metadata=metadata_dataset)
     shutil.copy( "simulink_model_original.slx", "simulink_model.slx")
     print("Running simulation with fault")
-    
-    res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
+    try:
+        res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
+    except matlab.engine.MatlabExecutionError as E:
+        print("Matlab Simulation produced an error")
+        print(E)
+        metadata = populate_metadata(df_broken=None,stop_time=stop_time,seed=seed)
+        metadata = {**metadata,**root_cause}
+        return None, metadata
+
     shutil.copy("simulink_model_original.slx", "simulink_model.slx")
     # Make a copy of time_varying_parameters
     if time_varying_parameters:
@@ -297,23 +338,8 @@ def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     first_diff_index = float(diff_rows.idxmax()) if diff_rows.any() else None
     is_observerd = {"valid":bool(diff_rows.any()), "first_diff_time": first_diff_index}
     # Prepare metadata describing the run (super handy for digging later)
-    metadata = {
-        "model": "the_model",
-        "stop_time_s": stop_time,
-        "n_rows": int(df_broken.shape[0]),
-        "n_signals": int(df_broken.shape[1]) if not df_broken.empty else 0,
-        "time_start_s": float(df_broken.index.min()) if not df_broken.empty else None,
-        "time_end_s": float(df_broken.index.max()) if not df_broken.empty else None,
-        "columns": list(df_broken.columns) if not df_broken.empty else [],
-        "seed": seed,
-        "env": {
-            "python": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
-            "pandas": pd.__version__,
-            "matplotlib": plt.matplotlib.__version__,
-            # Add MATLAB release if you like:
-            # "matlab_release": str(mle.version(nargout=1))
-        },
-    }
+
+    metadata = populate_metadata(df_broken=df_broken,stop_time=stop_time,seed=seed)
 
     # Create the prompt for the model
     prompt_related = {}
@@ -340,9 +366,9 @@ def main(index):
     
 
     # metadata_path = Path("metadata.json")
-    for i in range(1):
-        random.seed(i)
-        np.random.seed(i)
+    for i in range(10):
+        random.seed(i+4)
+        np.random.seed(i+4)
         # Make a copy of simulink_model_original
 
         # Use to read default values
@@ -354,11 +380,8 @@ def main(index):
 
         df, metadata= generate_data(mle, uST=uST, diagram_dir=run_dir / "diagram", seed=i)
 
-        paths = save_artifacts(run_dir, df, metadata)
+        save_artifacts(run_dir, df, metadata)
 
-        print("Saved artifacts:")
-        for k, v in paths.items():
-            print(f" - {k}: {v}")
-
+   
 if __name__ == "__main__":
     main()

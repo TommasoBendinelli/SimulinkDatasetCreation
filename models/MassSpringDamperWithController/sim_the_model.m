@@ -65,7 +65,7 @@ end
         S = struct('TimeVaryingParameters', TimeVaryingParameters);
         save(tvFile, '-struct', 'S');
     elseif args.Debug
-        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250925_101440__5b343565/diagram/time_varying_params.mat";
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250925_111304__943f9f21/diagram/time_varying_params.mat";
         if isfile(tvFile)
             L = load(tvFile);
             if isfield(L,'TimeVaryingParameters')
@@ -74,8 +74,8 @@ end
                 warning("Debug load: 'TimeVaryingParameters' not found in %s", tvFile);
                 TimeVaryingParameters = [];
             end
-            args.StopTime = 10;
-            Tfinal = 10;
+            args.StopTime = 100;
+            Tfinal = 100;
         else
             warning("Time-varying parameter file not found: %s", tvFile);
             TimeVaryingParameters = [];
@@ -206,16 +206,23 @@ end
     % --- Prepare accumulation of results ---
     res = struct();
     op = [];   % operating point carried between segments
-
+    
+    % Unlock compile-time params, set OP saving once, then enter Fast Restart
+    set_param(model_name,'FastRestart','off');
+    set_param(model_name,'SaveOperatingPoint','on');   % must stay constant in FR
+    % (Optional performance) choose fixed-step solver/logging options here
+    set_param(model_name,'FastRestart','on');
+        
     % --- Iterate segments ---
     for iseg = 1:numel(segStops)
+        disp(iseg)
         tStop = segStops(iseg);
 
         % Prepare SimulationInput for this segment
         si = Simulink.SimulationInput(model_name);
         si = si.setVariable('uST', args.uST);
         si = si.setModelParameter('StopTime', num2str(tStop));
-        si = si.setModelParameter('SaveOperatingPoint','on');
+        % si = si.setModelParameter('SaveOperatingPoint','on');
 
         % Set tunable parameters
         if isstruct(args.TunableParameters)
@@ -280,7 +287,9 @@ end
 
     % Expose final OP to caller
     res.OperatingPoint = op;
+set_param(model_name,'FastRestart','off');
 end
+
 
 % === Helpers ===============================================================
 
