@@ -24,7 +24,7 @@ import matlab.engine
 root_dir = Path(__file__).parent.parent.parent
 sys.path.append(str(root_dir))
 
-from utils import new_run_dir, sanity_check, linear_ramp, logistic_ramp, step
+from utils import new_run_dir, sanity_check, linear_ramp, logistic_ramp, step, obtain_xml_system_description
 
 # ---------- helpers ----------
 def _to1d(a):
@@ -67,7 +67,7 @@ def generate_tunable_parameters() -> Dict:
     return res 
 
 
-def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, preview_cols: int = 6):
+def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, xml_text: str):
     # 1) primary data (Parquet)
     if df is not None: # None only if an exception was triggered
         csv_path = run_dir / "data.csv"
@@ -83,7 +83,7 @@ def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, pr
         # 3) quick plot preview (first few columns)
         plt.figure()
         if not df.empty:
-            df.iloc[:, :min(preview_cols, df.shape[1])].plot(legend=True)
+            df.iloc[:, :].plot(legend=True)
         plt.xlabel("time [s]")
         plt.tight_layout()
         preview_path = run_dir / "preview.png"
@@ -95,7 +95,11 @@ def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, pr
     with meta_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
-
+    # Save xml_description
+    # Save xml_description
+    with xml_text.open("w", encoding="utf-8") as f:
+        f.write(xml_text)
+        
 
 
 def compress_df(df, target_column=""):
@@ -351,6 +355,17 @@ def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     metadata = {**metadata,**root_cause, **is_observerd, **prompt_related}
     return df_broken, metadata
 
+def fix_simulink_model_path(target_folder: Path) -> str:
+    files = [p for p in target_folder.iterdir() if p.is_file()]
+
+    if Path("simulink_model_original.slx") in files:
+        return str(target_folder / "simulink_model_original.slx")
+    elif Path("simulink_model_original.slx.r2025a") in files:
+        os.rename("simulink_model_original.slx.r2025a","simulink_model_original.slx")
+        return str(target_folder / "simulink_model_original.slx")
+    else:
+        breakpoint()
+
 @click.command()
 @click.argument(
     "index",
@@ -366,7 +381,23 @@ def main(index):
     mle = matlab.engine.start_matlab()
     uST = 0.01 
 
-    
+    available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController"]
+    root_path = Path("models") / available_scenarios[index]
+    # adjust name if different
+    simulink_path = fix_simulink_model_path(Path("."))
+    # Use to read default values
+    mle.load_system(simulink_path)
+    mdl_or_bundle =  "simulink_model_original.mdl"
+    # Save the mdl version to create the xml description
+    mle.save_system('simulink_model_original', mle.fullfile(mdl_or_bundle))
+
+    # Create the mdl version
+    xml_description = obtain_xml_system_description(Path(mdl_or_bundle))
+
+    # Close the model
+    mle.close_system('simulink_model_original', 0, nargout=0)
+    # Delete mdl_or_bundle
+    os.remove(mdl_or_bundle)
 
     # metadata_path = Path("metadata.json")
     for i in range(10):
@@ -375,16 +406,15 @@ def main(index):
         # Make a copy of simulink_model_original
 
         # Use to read default values
-        mle.load_system(str(root_path/ 'simulink_model_original.slx'))
-        
-        # Save the model in mdl format
-        
+        simulink_path = fix_simulink_model_path(Path("."))
+        mle.load_system(simulink_path)
+    
        
         run_dir = new_run_dir(Path(cwd) / "data", system_name=root_path.name, diagram_subdir= "diagram")
 
         df, metadata= generate_data(mle, uST=uST, diagram_dir=run_dir / "diagram", seed=i)
 
-        save_artifacts(run_dir, df, metadata)
+        save_artifacts(run_dir, df, metadata, xml_description)
 
    
 if __name__ == "__main__":

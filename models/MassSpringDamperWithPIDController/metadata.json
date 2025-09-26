@@ -69,7 +69,7 @@
     "uST": 0.01,
     "stop_time": 100.0,
     "fault_window": {
-      "start_fraction_range": [50, 65],
+      "start_range": [50, 65],
       "duration_fraction_range": [0.01, 0.1]
     }
   },

@@ -58,9 +58,15 @@ end
         mkdir(args.DiagramDataPath);
     end
 
+    % --- Create also the debug folder -- 
+    debug_folder = fullfile(fileparts(args.DiagramDataPath), 'debug');
+    if ~isfolder(debug_folder)
+        mkdir(debug_folder);
+    end
+
     % --- (Optional) Save time-varying params to file or load a debug default ---
     if ~isempty(args.TimeVaryingParameters)
-        tvFile = fullfile(args.DiagramDataPath, "time_varying_params.mat");
+        tvFile = fullfile(debug_folder, "time_varying_params.mat");
         TimeVaryingParameters = args.TimeVaryingParameters;
         S = struct('TimeVaryingParameters', TimeVaryingParameters);
         save(tvFile, '-struct', 'S');
