@@ -1,0 +1,178 @@
+{
+  "context": "We are simulating a 1-DOF rotational drivetrain. An angular-velocity source (driven by a command signal) acts on a shaft with inertia, viscous rotational friction, and a torsional spring–damper to ground. A rotational sensor measures angle and speed. Dynamics depend on inertia J, spring stiffness k_t, damping d_t, viscous friction B, actuator effectiveness, the commanded speed, and possible sensor biases.",
+  "question": "The system behaves normally until a given timestamp, then a fault is injected. Select the correct option from the list.",
+
+  "parameters": [
+    {
+      "name": "Inertia (kg·m^2)",
+      "identifier": "simulink_model_original/Inertia",
+      "key": "J",
+      "initial_sampling": { "type": "uniform", "min": 0.001, "max": 0.05 }
+    },
+    {
+      "name": "Rotational Spring Stiffness (N·m/rad)",
+      "identifier": "simulink_model_original/Rotational Spring",
+      "key": "k_t",
+      "initial_sampling": { "type": "uniform", "min": 5.0, "max": 200.0 }
+    },
+    {
+      "name": "Rotational Damper (N·m·s/rad)",
+      "identifier": "simulink_model_original/Rotational Damper",
+      "key": "d_t",
+      "initial_sampling": { "type": "uniform", "min": 0.02, "max": 5.0 }
+    },
+    {
+      "name": "Viscous Rotational Friction (N·m·s/rad)",
+      "identifier": "simulink_model_original/Rotational Friction",
+      "key": "B",
+      "initial_sampling": { "type": "uniform", "min": 0.001, "max": 0.5 }
+    },
+    {
+      "name": "Actuator gain",
+      "identifier": "simulink_model_original/Angular Velocity Source",
+      "key": "k_eff",
+      "initial_sampling": { "type": "uniform", "min": 0.7, "max": 1.3 }
+    },
+    {
+      "name": "Commanded speed amplitude (rad/s)",
+      "identifier": "simulink_model_original/Drive Signal",
+      "key": "Amplitude",
+      "initial_sampling": { "type": "uniform", "min": 1.0, "max": 30.0 }
+    },
+    {
+      "name": "Angle sensor bias (rad)",
+      "identifier": "simulink_model_original/Rotational Sensor 1",
+      "key": "theta_bias",
+      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
+    },
+    {
+      "name": "Speed sensor bias (rad/s)",
+      "identifier": "simulink_model_original/Rotational Sensor 2",
+      "key": "omega_bias",
+      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
+    }
+  ],
+
+  "time_grid": {
+    "uST": 0.005,
+    "stop_time": 60.0,
+    "fault_window": {
+      "start_fraction_range": [45, 70],
+      "duration_fraction_range": [0.01, 0.1]
+    }
+  },
+
+  "fault_options": [
+    {
+      "id": "no_error",
+      "text": "The simulation doesn't contain any error.",
+      "target_column": -1,
+      "target_parameters": []
+    },
+
+    {
+      "id": "inertia_implausible_step",
+      "text": "The inertia jumps to an implausibly large value at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Inertia",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 1.0, "max": 5.0 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "spring_stiffness_drift",
+      "text": "The torsional spring loses stiffness, starting from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Rotational Spring",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp"],
+        "value_candidates": [{ "type": "uniform", "min": 0.0, "max": 5.0 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "damper_loss_step",
+      "text": "The torsional damper loses damping at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Rotational Damper",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 0.0, "max": 0.05 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "friction_spike_step",
+      "text": "A sudden spike in viscous rotational friction occurs at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Rotational Friction",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 10.0, "max": 50.0 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "sensor_bias_drift_angle",
+      "text": "The rotational sensor develops a drifting angle bias from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Rotational Sensor 1",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": -1.0, "max": 1.0 }],
+        "placeholders": ["start_time"]
+      }
+    },
+    {
+      "id": "sensor_bias_drift_velocity",
+      "text": "The rotational sensor develops a drifting speed bias from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Rotational Sensor 2",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": -20.0, "max": 20.0 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "actuator_sign_inversion",
+      "text": "The actuator gain becomes negative (angular velocity sign inverts) at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Angular Velocity Source",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": -1.2, "max": -0.2 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "actuator_power_loss",
+      "text": "The actuator loses effectiveness from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Angular Velocity Source",
+        "allowed_corruption_types": ["linear_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": 0.0, "max": 0.15 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "setpoint_spike",
+      "text": "The commanded angular velocity jumps to an implausibly large amplitude at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Drive Signal",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 100.0, "max": 500.0 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "mechanical_disconnect",
+      "text": "A mechanical disconnect occurs (spring/damper effectively detached) at {}",
+      "target_parameters": "",
+      "fault": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+component force_non_ideal
+% Non-Ideal Force Source
+% This block represents a force source whose output equals
+% a scaled version of the input physical signal. The scale
+% factor k_eff models actuator effectiveness:
+%   • k_eff = 1 → ideal source (full commanded force)
+%   • 0 < k_eff < 1 → reduced effectiveness
+%   • k_eff = 0 → no output force
+%
+% Block connections R and C are mechanical translational conserving
+% ports. Port S is the physical signal input (units: N). A positive
+% signal at port S generates a force acting from C to R, with
+% magnitude reduced by the effectiveness factor.
+
+
+parameters
+    k_eff = { 1, '1' };   % Effectiveness (0..1)
+end
+
+inputs
+    S = { 0, 'N' }; % S:bottom
+end
+
+nodes
+    C = foundation.mechanical.translational.translational; % C:bottom
+    R = foundation.mechanical.translational.translational; % R:top
+end
+
+variables(Access = protected)
+    v = { 0, 'm/s' };       % Velocity
+    f = { 0, 'N' };         % Force
+end
+
+branches
+    f : R.f -> C.f;
+end
+
+equations
+    v == C.v - R.v;
+    f == -k_eff * S;      % positive S acts from C to R, scaled by k_eff
+end
+annotations
+    Icon = 'force_non_ideal.png';
+end
+end

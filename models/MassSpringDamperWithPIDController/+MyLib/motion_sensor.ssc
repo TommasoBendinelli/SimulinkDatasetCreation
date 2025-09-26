@@ -1,0 +1,96 @@
+component motion_sensor
+% Translational Motion Sensor
+% This block measures acceleration, velocity, or displacement in a
+% mechanical translational network. The sensor is ideal since it does not
+% account for inertia, friction, delays, energy consumption, and so on.
+% 
+% The physical signal ports A, V, and P report the acceleration, velocity,
+% and position, respectively, of port R relative to port C. The measured
+% velocity is positive when the velocity at port R is greater than the
+% velocity at port C. Optionally disable port C and measure with
+% respect to ground.
+
+% Copyright 2005-2022 The MathWorks, Inc.
+
+nodes
+    R = foundation.mechanical.translational.translational; % R:left
+end
+
+nodes(ExternalAccess = none)
+    C = foundation.mechanical.translational.translational; % C:right
+end
+
+outputs(ExternalAccess = none)
+    A = { 0, 'm/s^2' }; % A:right
+    V = { 0, 'm/s' }; % V:right
+    P = { 0, 'm' };   % P:right
+end
+
+parameters
+    v_bias = { 0, 'm/s' };      % Velocity bias (offset)
+    p_bias = { 0, 'm'};
+    reference = foundation.enum.MeasurementReference.difference;  % Measurement reference
+    acceleration_port = false;  % Acceleration
+    velocity_port = true;       % Velocity
+    position_port = true;       % Position
+end
+
+parameters(ExternalAccess = none)
+    offset = { 0, 'm' }; % Initial position
+end
+
+if reference == foundation.enum.MeasurementReference.difference
+    annotations
+        C : ExternalAccess = modify;
+    end
+else    % Ground and hide C port for absolute measurement
+    connections
+        connect(C,*)
+    end
+end
+
+if acceleration_port
+    annotations
+        A : ExternalAccess = modify;
+    end
+    equations
+        A == der( R.v - C.v ) 
+    end
+else
+    equations
+        A == 0;
+    end
+end
+
+if velocity_port
+    annotations
+        V : ExternalAccess = modify ;
+    end
+end
+    
+if position_port
+    annotations
+        [offset, P] : ExternalAccess = modify;
+    end
+    variables (Access = private)
+        x = {value = offset, priority = priority.high}; % Position
+    end
+    equations
+        der(x) == V;
+        P == x + p_bias;
+    end
+else
+    equations
+        P == 0;
+    end
+end
+
+equations
+    V == R.v - C.v + v_bias;
+end
+
+annotations
+    Icon = 'motion_sensor.png';
+end
+
+end

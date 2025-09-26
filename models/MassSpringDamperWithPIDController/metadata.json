@@ -1,0 +1,179 @@
+{
+  "context": "We are simulating a 1-DOF mass–spring–damper system actuated by a force source and regulated by a continuous PID controller. The motion sensor feeds back position to the controller to track a commanded position. Dynamics depend on mass (m), spring stiffness (k), damping (c), actuator effectiveness, sensor bias, and PID gains.",
+    "question": "The system runs smoothly until a given timestamp, then we are simulating a fault in the system. Can you select the correct answer in the list?",
+
+  "parameters": [
+    {
+      "name": "Mass (kg)",
+      "identifier": "simulink_model_original/Mass",
+      "key": "Mass",
+      "initial_sampling": { "type": "uniform", "min": 0.5, "max": 10.0 }
+    },
+    {
+      "name": "Spring stiffness (N/m)",
+      "identifier": "simulink_model_original/Spring",
+      "key": "spr_rate",
+      "initial_sampling": { "type": "uniform", "min": 100.0, "max": 2000.0 }
+    },
+    {
+      "name": "Damping coefficient (N*s/m)",
+      "identifier": "simulink_model_original/Damper",
+      "key": "D",
+      "initial_sampling": { "type": "uniform", "min": 20, "max": 200.0 }
+    },
+    {
+      "name": "PID P gain",
+      "identifier": "simulink_model_original/PID Controller 1",
+      "key": "P",
+      "initial_sampling": { "type": "uniform", "min": 650, "max": 750}
+    },
+    {
+      "name": "PID I gain",
+      "identifier": "simulink_model_original/PID Controller 2",
+      "key": "I",
+      "initial_sampling": { "type": "uniform", "min": 3500, "max": 4000}
+    },
+    {
+      "name": "PID D gain",
+      "identifier": "simulink_model_original/PID Controller 3",
+      "key": "D",
+      "initial_sampling": { "type": "uniform", "min": 10, "max": 15 }
+    },
+    {
+      "name": "Actuator gain",
+      "identifier": "simulink_model_original/Force Source",
+      "key": "k_eff",
+      "initial_sampling": { "type": "uniform", "min": 0.7, "max": 1.3 }
+    },
+    {
+      "name": "Position command amplitude (m)",
+      "identifier": "simulink_model_original/Position Command",
+      "key": "Amplitude",
+      "initial_sampling": { "type": "uniform", "min": 0.01, "max": 0.25 }
+    },
+    {
+      "name": "Sensor bias (m)",
+      "identifier": "simulink_model_original/Motion Sensor 1",
+      "key": "p_bias",
+      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
+    },
+     {
+      "name": "Sensor bias (m)",
+      "identifier": "simulink_model_original/Motion Sensor 2",
+      "key": "v_bias",
+      "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
+    }
+  ],
+
+  "time_grid": {
+    "uST": 0.01,
+    "stop_time": 100.0,
+    "fault_window": {
+      "start_fraction_range": [50, 65],
+      "duration_fraction_range": [0.01, 0.1]
+    }
+  },
+
+  "fault_options": [
+    {
+      "id": "no_error",
+      "text": "The simulation doesn't contain any error.",
+      "target_column": -1,
+      "target_parameters": []
+    },
+
+    {
+      "id": "mass_implausible_step",
+      "text": "The mass increased drastically",
+      "fault": {
+        "parameter": "simulink_model_original/Mass",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 100, "max": 400 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "spring_stiffness_drift",
+      "text": "The spring lost its stiffnes, starting from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Spring",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp"],
+        "value_candidates": [{ "type": "uniform", "min": 0, "max": 50.0 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "damper_negative_step",
+      "text": "The damper lost its damping ability, starting from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Damper",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 0, "max": 2.0 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "sensor_bias_drift",
+      "text": "The motion sensor develops a drifting bias in the position from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Motion Sensor 1",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": -0.5, "max": 0.5 }],
+        "placeholders": ["start_time"]
+      }
+    },
+    {
+      "id": "sensor_bias_drift",
+      "text": "The motion sensor develops a drifting bias in the velocity from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Motion Sensor 2",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": -0.5, "max": 0.5 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "actuator_sign_inversion",
+      "text": "The actuator gain becomes negative (force sign inverts) at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Force Source",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": -1.2, "max": -0.2 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "actuator_power_loss",
+      "text": "The actuator loses effectiveness from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Force Source",
+        "allowed_corruption_types": ["linear_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": 0.0, "max": 0.1 }],
+        "placeholders": ["start_time"]
+      }
+    },
+
+    {
+      "id": "setpoint_spike",
+      "text": "The position command jumps to an implausibly large amplitude at {}",
+      "fault": {
+        "parameter": "simulink_model_original/Position Command",
+        "allowed_corruption_types": ["step"],
+        "value_candidates": [{ "type": "uniform", "min": 0.5, "max": 2.0 }],
+        "placeholders": ["time"]
+      }
+    },
+
+    {
+      "id": "mechanical_disconnect",
+      "text": "A mechanical disconnect occurs (spring/damper effectively detached) at {}",
+      "target_parameters": "",
+      "fault": null
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "context": "We are simulating a 1-DOF mass–spring–damper system actuated by a force source and regulated by a continuous PID controller. The motion sensor feeds back position to the controller to track a commanded position. Dynamics depend on mass (m), spring stiffness (k), damping (c), actuator effectiveness, sensor bias, and PID gains.",
-  "question": "The simulation is correct until a given timestamp, then something physically implausible might happen. Can you pinpoint what happens and select the correct answer in the list?",
+  "context": "We are simulating a 1-DOF mass–spring–damper system actuated by a force source and regulated by a continuous P controller (Weights). The motion sensor feeds back position to the controller to track a commanded position. Dynamics depend on mass (m), spring stiffness (k), damping (c), actuator effectiveness, sensor bias, and PID gains.",
+  "question": "The system runs smoothly until a given timestamp, then we are simulating a fault in the system. Can you select the correct answer in the list?",
 
   "parameters": [
     {
@@ -23,21 +23,21 @@
     },
     {
       "name": "PID P gain",
-      "identifier": "simulink_model_original/PID Controller",
+      "identifier": "simulink_model_original/PID Controller 1",
       "key": "P",
       "initial_sampling": { "type": "uniform", "min": 650, "max": 750}
     },
     {
       "name": "PID I gain",
-      "identifier": "simulink_model_original/PID Controller",
+      "identifier": "simulink_model_original/PID Controller 2",
       "key": "I",
-      "initial_sampling": { "type": "uniform", "min": 3500, "max": 4000}
+      "initial_sampling": { "type": "uniform", "min": 0, "max": 0}
     },
     {
       "name": "PID D gain",
-      "identifier": "simulink_model_original/PID Controller",
+      "identifier": "simulink_model_original/PID Controller 3",
       "key": "D",
-      "initial_sampling": { "type": "uniform", "min": 10, "max": 15 }
+      "initial_sampling": { "type": "uniform", "min": 0, "max": 0 }
     },
     {
       "name": "Actuator gain",
@@ -53,13 +53,13 @@
     },
     {
       "name": "Sensor bias (m)",
-      "identifier": "simulink_model_original/Motion Sensor",
+      "identifier": "simulink_model_original/Motion Sensor 1",
       "key": "p_bias",
       "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
     },
      {
       "name": "Sensor bias (m)",
-      "identifier": "simulink_model_original/Motion Sensor",
+      "identifier": "simulink_model_original/Motion Sensor 2",
       "key": "v_bias",
       "initial_sampling": { "type": "uniform", "min": 0.0, "max": 0.0 }
     }
@@ -117,9 +117,19 @@
 
     {
       "id": "sensor_bias_drift",
-      "text": "The motion sensor develops a drifting bias from {}",
+      "text": "The motion sensor develops a drifting bias in the position from {}",
       "fault": {
-        "parameter": "simulink_model_original/Motion Sensor",
+        "parameter": "simulink_model_original/Motion Sensor 1",
+        "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
+        "value_candidates": [{ "type": "uniform", "min": -0.5, "max": 0.5 }],
+        "placeholders": ["start_time"]
+      }
+    },
+    {
+      "id": "sensor_bias_drift",
+      "text": "The motion sensor develops a drifting bias in the velocity from {}",
+      "fault": {
+        "parameter": "simulink_model_original/Motion Sensor 2",
         "allowed_corruption_types": ["linear_ramp", "logistic_ramp", "step"],
         "value_candidates": [{ "type": "uniform", "min": -0.5, "max": 0.5 }],
         "placeholders": ["start_time"]

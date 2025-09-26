@@ -129,8 +129,10 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
     for parameter in metadata['parameters']:
         # initial_value = float(mle.get_param(parameter['identifier'], parameter['key']))
         intial_value = sample_value(parameter["initial_sampling"])
+        assert not parameter['identifier'] in intial_values_dict
         intial_values_dict[parameter['identifier']] = intial_value
 
+        
         blocks_type[parameter['identifier']] = parameter['key']
 
     # Create the pandas dataframe
@@ -149,8 +151,8 @@ def generate_time_varying_parameters(mle, uST=0.1, stop_time=30.0, metadata=None
         end_value = sample_value(sample_strategy)
         target_column = error['fault']["parameter"]
         # Sample a random start time
-        start_fault_window = metadata["time_grid"]["fault_window"]["start_fraction_range"][0]
-        end_fault_window = metadata["time_grid"]["fault_window"]["start_fraction_range"][1]
+        start_fault_window = metadata["time_grid"]["fault_window"]["start_range"][0]
+        end_fault_window = metadata["time_grid"]["fault_window"]["start_range"][1]
         duration_fract_min = metadata["time_grid"]["fault_window"]["duration_fraction_range"][0]
         duration_fract_max = metadata["time_grid"]["fault_window"]["duration_fraction_range"][1]
 
@@ -355,8 +357,9 @@ def generate_data(mle, uST=None, diagram_dir=None,seed=None):
     type=click.IntRange(0, 1),
 )
 def main(index):
-    available_scenarios = ["BouncingBall", "MassSpringDamperWithController"]
+    available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController"]
     root_path = Path("models") / available_scenarios[index]
+
     click.echo(f"Using scenario: {available_scenarios[index]} at {root_path}")
     cwd = os.getcwd()
     os.chdir(Path(cwd) / root_path)
@@ -374,7 +377,8 @@ def main(index):
         # Use to read default values
         mle.load_system(str(root_path/ 'simulink_model_original.slx'))
         
-
+        # Save the model in mdl format
+        
        
         run_dir = new_run_dir(Path(cwd) / "data", system_name=root_path.name, diagram_subdir= "diagram")
 

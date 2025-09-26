@@ -226,7 +226,6 @@ end
 
     %% OutputFcn
     function locPostStepFcn(simTime)
-        disp(simTime)
         for k = 1:numel(TimeVaryingParameters)
             times = TimeVaryingParameters.time{k};
             values = TimeVaryingParameters.values{k};

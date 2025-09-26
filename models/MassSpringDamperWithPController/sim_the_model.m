@@ -65,7 +65,7 @@ end
         S = struct('TimeVaryingParameters', TimeVaryingParameters);
         save(tvFile, '-struct', 'S');
     elseif args.Debug
-        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250925_111304__943f9f21/diagram/time_varying_params.mat";
+        tvFile = "/Users/tbe/repos/IndustrialRootAnalysisBench/data/MassSpringDamperWithController/20250925_143531__17956d60/diagram/time_varying_params.mat";
         if isfile(tvFile)
             L = load(tvFile);
             if isfield(L,'TimeVaryingParameters')
@@ -107,7 +107,10 @@ end
     % --- Apply initial values for each time-varying parameter (t=0) ---
     if ~isempty(TimeVaryingParameters)
         for k = 1:numel(TimeVaryingParameters.identifier)
-            identifier = TimeVaryingParameters.identifier{k};
+            identifier = stripTrailingNumber(TimeVaryingParameters.identifier{k});
+            % Remove the the number at the end if present
+            % simulink_model/Motion Sensor 1 -> Should become
+            % simulink_model/Motion Sensor 2 for instance
             key        = TimeVaryingParameters.key{k};
             times      = TimeVaryingParameters.time{k};
             values     = TimeVaryingParameters.values{k};
@@ -335,7 +338,7 @@ function [TVP, didChange] = applyChangesAtTime(TVP, tEvent)
     didChange = false;
     if isempty(TVP); return; end
     for k = 1:numel(TVP.identifier)
-        identifier = TVP.identifier{k};
+        identifier = stripTrailingNumber(TVP.identifier{k});
         key        = TVP.key{k};
         times      = TVP.time{k};
         values     = TVP.values{k};
@@ -431,4 +434,17 @@ function ds = getSignalLoggingDataset(so)
     end
     error('extractResults:NoDatasetFound', ...
         'No Simulink.SimulationData.Dataset found in the SimulationOutput.');
+end
+
+function base = stripTrailingNumber(identifier)
+    % stripTrailingNumber - removes a trailing number if present
+    %
+    % Example:
+    %   stripTrailingNumber('simulink_model/Motion Sensor 1')
+    %   -> 'simulink_model/Motion Sensor'
+    %
+    %   stripTrailingNumber('simulink_model/Motion Sensor')
+    %   -> 'simulink_model/Motion Sensor'
+
+    base = regexprep(identifier, '\s*\d+$', '');
 end

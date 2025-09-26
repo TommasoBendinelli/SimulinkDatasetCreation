@@ -1,6 +1,6 @@
 {
   "context": "We are simulating the motion of a ball dropped from a height under gravity, bouncing back when it hits the ground. The dynamics include gravitational acceleration, velocity, position, and energy loss during impact (via the coefficient of restitution).",
-  "question": "The simulation is correct until a given timestamp, then something physically implausible might happen. Can you pinpoint what happens, select the correct answer in the list.",
+  "question": "You are given a simulation and your task is to determine whether any physically implausible events occur at any time point. Select the correct answer in the list. Note that some answers also require you to return the time something happened",
 
   "parameters": [
     {
@@ -27,7 +27,7 @@
     "uST": 0.1,
     "stop_time": 30.0,
     "fault_window": {
-      "start_fraction_range": [0.2, 0.4],
+      "start_fraction_range": [5, 15],
       "duration_fraction_range": [0.01, 0.1]
     }
   },
@@ -71,7 +71,7 @@
     },
     {
       "id": "restitution_implausible",
-      "text": "The ball stops boucing completely implausibly at the time {} s",
+      "text": "At {} s, the ball implausibly stops bouncing altogether",
       "fault": {
         "parameter": "simulink_model_original/Coefficient of Restitution",
         "allowed_corruption_types": ["step"],
