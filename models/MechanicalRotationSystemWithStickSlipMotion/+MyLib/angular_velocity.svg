@@ -1,0 +1,73 @@
+
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:d="http://www.mathworks.com/blockgraphics"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     d:options="Port:L0;Background:Transparent"
+     height="315"
+     id="svg_5"
+     version="1.1"
+     width="315"
+     viewBox="9 9 297 297">
+         <title>
+		Fig file converted by fig2lat	</title>
+         <defs>
+            <style>
+			.sB {
+				fill: #000000;
+			fillrule: evenodd;
+			stroke-miterlimit: 20;}
+			.sD {
+				fill: none;
+			stroke: #000000;
+			stroke-width: 0.9;}
+			.sE {
+				fill: none;
+			stroke: #000000;
+			stroke-width: 0.9;
+			stroke-miterlimit: 20;}
+			.sC {
+				fill: none;
+			stroke: #000000;
+			stroke-width: 0.9;}
+			.sA {
+				fill: none;
+			stroke: #000000;
+			stroke-width: 0.9;
+			stroke-miterlimit: 20;}
+					</style>
+         </defs>
+
+         <g id="layer_4" title="layer_0">
+<g d:options="PreserveAspect:On">
+            <g id="group_14">
+               <title>
+				Layer 1			</title>
+               <ellipse class="sD" cx="156.18" cy="158.82" d:options="ClosedShapeFill:On" id="svg_10"
+                        rx="93.54"
+                        ry="93.48"
+                        />
+               <path class="sA" d=" M 109.38,196.2 L 151.5,156.48" id="svg_1"/>
+               <path class="sA" d=" M 146.82,161.16 L 146.82,112.08" id="svg_2"/>
+               <path class="sA" d=" M 165.48,161.16 L 165.48,112.08" id="svg_3"/>
+               <path class="sB"
+                     d=" M 160.35,163.05 L 161.25,163.05 L 161.25,163.95 L 160.35,163.95 L 160.35,163.05 Z"
+                     id="svg_4"/>
+               <path class="sA" d=" M 118.74,203.22 L 160.8,163.5" id="svg_6"/>
+               <path class="sC"
+                     d=" M 151.5,156.48 C 152.43,155.34 153.75,154.59 155.2,154.35 C 156.64999999999998,154.12 158.14,154.43 159.38,155.22 C 160.62,156.01 161.53,157.23 161.93,158.65 C 162.33,160.07 162.20000000000002,161.58 161.56,162.9 C 160.92000000000002,164.22 159.82,165.27 158.46,165.84"
+                     id="svg_7"/>
+               <path class="sC"
+                     d=" M 165.48,161.16 C 165.7,163.14 165.23999999999998,165.14 164.17999999999998,166.82999999999998 C 163.11999999999998,168.51999999999998 161.52999999999997,169.79999999999998 159.64999999999998,170.46999999999997 C 157.76999999999998,171.13999999999996 155.73,171.15999999999997 153.83999999999997,170.51999999999998"
+                     id="svg_8"/>
+               <ellipse class="sD" cx="156.18" cy="157.62" id="svg_9" rx="80.7" ry="80.64"/>
+               <ellipse class="sD" cx="114.06" cy="199.68" id="svg_11" rx="5.88" ry="5.88"/>
+               
+               <path class="sE" d=" M 156.18,77.04 L 132.78,112.08 L 179.52,112.08 L 156.18,77.04 Z"
+                     id="svg_13"/>
+            </g>
+         </g>
+
+</g>
+<rect class="sE" height="297" id="svg_12" rx="0" ry="0" width="297" x="9" y="9" style="fill:none"/>
+</svg>

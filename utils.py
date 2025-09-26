@@ -12,7 +12,7 @@ def new_run_dir(root: Path = "runs", system_name="entry", diagram_subdir="diagra
     (run_dir / diagram_subdir).mkdir(parents=True,exist_ok=False)
     return run_dir
 
-def sanity_check(uST, metadata_dataset=None):
+def sanity_check(uST, metadata_dataset=None, root_folder=Path(".")):
     assert metadata_dataset is not None 
     ### Efficiency 
     if uST is None:
@@ -21,6 +21,10 @@ def sanity_check(uST, metadata_dataset=None):
         raise ValueError("uST must be > 0.")
     assert 0 < metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][0] < metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][1]
     assert metadata_dataset["time_grid"]["fault_window"]["duration_fraction_range"][1] < 1
+
+    sim_file = root_folder / "sim_the_model.m"
+    if not sim_file.exists():
+        raise FileNotFoundError(f"Missing required file: {sim_file}")
 
 def _value_cols(df: pd.DataFrame):
     return [c for c in df.columns if c != "time"]

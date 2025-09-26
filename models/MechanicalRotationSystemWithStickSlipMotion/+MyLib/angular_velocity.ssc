@@ -1,0 +1,127 @@
+component RotationalMotionSensorWithFault
+% Rotational Motion Sensor with measurement faults
+% Ideal sensor of rotational motion that reports measured (faulted) speed,
+% acceleration, and position. Faults are applied in the measurement path.
+%
+% w_true = R.w - C.w
+% w_meas = (1 + fault_speed_gain)*w_true + fault_speed_bias + fault_drift_rate*time
+% alpha  = der(w_meas) + fault_accel_bias
+%
+% Ports:
+%   R, C  — mechanical rotational conserving ports (C optionally grounded)
+%   Outputs (enabled via parameters): alpha (rad/s^2), W (rad/s), A (rad)
+
+% -------- Fault parameters (measurement path) --------
+parameters
+    fault_speed_bias = { 0, 'rad/s' };    % Constant speed bias
+    fault_speed_gain = 0;                 % Dimensionless gain error
+    fault_drift_rate = { 0, 'rad/s^2' };  % Linear drift rate added to speed
+    fault_accel_bias = { 0, 'rad/s^2' };  % Constant acceleration bias
+end
+
+% -------- Nodes --------
+nodes
+    R = foundation.mechanical.rotational.rotational; % R:left
+end
+nodes(ExternalAccess = none)
+    C = foundation.mechanical.rotational.rotational; % C:right
+end
+
+% -------- Outputs (hidden by default; enabled via annotations below) --------
+outputs(ExternalAccess = none)
+    alpha = { 0, 'rad/s^2' };  % α:right
+    W     = { 0, 'rad/s' };    % W:right
+    A     = { 0, 'rad' };      % A:right
+end
+
+% -------- UI / feature toggles --------
+parameters
+    reference         = foundation.enum.MeasurementReference.difference; % Difference vs absolute
+    acceleration_port = true;   % Expose α port
+    velocity_port     = true;   % Expose W port
+    position_port     = true;   % Expose A port
+end
+
+parameters(ExternalAccess = none)
+    wrap_angle = false;               % Wrap angle to [0, 2*pi]
+    offset     = { 0, 'rad' };        % Initial angle
+end
+
+% -------- Internal variables --------
+variables (Access = private)
+    w_true = { 0, 'rad/s' };                            % True relative speed
+    w_meas = { 0, 'rad/s' };                            % Measured (faulted) speed
+    phi    = { value = offset, priority = priority.high }; % Measured angle state
+end
+
+% -------- Reference handling (hide/ground C for absolute) --------
+if reference == foundation.enum.MeasurementReference.difference
+    annotations
+        C : ExternalAccess = modify;
+    end
+else
+    % Ground and hide C port for absolute measurement
+    connections
+        connect(C,*)
+    end
+end
+
+% -------- Velocity output handling --------
+if velocity_port
+    annotations
+        W : ExternalAccess = modify;
+    end
+    equations
+        W == w_meas;
+    end
+else
+    equations
+        W == 0;
+    end
+end
+
+% -------- Acceleration output handling --------
+if acceleration_port
+    annotations
+        alpha : ExternalAccess = modify;
+    end
+    equations
+        alpha == der(w_meas) + fault_accel_bias;
+    end
+else
+    equations
+        alpha == 0;
+    end
+end
+
+% -------- Position output handling --------
+if position_port
+    annotations
+        [wrap_angle, offset, A] : ExternalAccess = modify;
+    end
+    equations
+        % Integrate *measured* speed so faults propagate into angle.
+        % If you prefer a "perfect" angle, change w_meas -> w_true here.
+        der(phi) == w_meas;
+        if wrap_angle
+            A == mod(phi, {2*pi, 'rad'});
+        else
+            A == phi;
+        end
+    end
+else
+    equations
+        A == 0;
+    end
+end
+
+% -------- Core measurement equations --------
+equations
+    % True relative speed
+    w_true == R.w - C.w;
+
+    % Faulted measured speed
+    w_meas == (1 + fault_speed_gain)*w_true + fault_speed_bias + fault_drift_rate * time;
+end
+
+end

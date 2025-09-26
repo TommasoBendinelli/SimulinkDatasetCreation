@@ -1,0 +1,609 @@
+<System>
+  <Block BlockType="Reference" Name="Inertia">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Inertia</P>
+    <P Name="SourceType">Inertia</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.inertia</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.inertia</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.inertia</P>
+      <P Name="ComponentVariantNames">inertia</P>
+      <P Name="ClassName">inertia</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="inertia">0.0001</P>
+      <P Name="inertia_unit">kg*m^2</P>
+      <P Name="inertia_conf">runtime</P>
+      <P Name="num_ports">foundation.enum.numPorts2.one</P>
+      <P Name="num_ports_unit">1</P>
+      <P Name="num_ports_conf">compiletime</P>
+      <P Name="w_specify">off</P>
+      <P Name="w_priority">High</P>
+      <P Name="w">0</P>
+      <P Name="w_unit">rad/s</P>
+      <P Name="w_nominal_specify">off</P>
+      <P Name="w_nominal_value">1</P>
+      <P Name="w_nominal_unit">rad/s</P>
+      <P Name="t_specify">off</P>
+      <P Name="t_priority">High</P>
+      <P Name="t">0</P>
+      <P Name="t_unit">N*m</P>
+      <P Name="t_nominal_specify">off</P>
+      <P Name="t_nominal_value">1</P>
+      <P Name="t_nominal_unit">N*m</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="MRRef">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Mechanical
+Rotational Reference</P>
+    <P Name="SourceType">Mechanical
+Rotational Reference</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.reference</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariantNames">reference</P>
+      <P Name="ClassName">reference_rot</P>
+      <P Name="SchemaVersion">1</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="MRRef Load">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Mechanical
+Rotational Reference</P>
+    <P Name="SourceType">Mechanical
+Rotational Reference</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.reference</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariantNames">reference</P>
+      <P Name="ClassName">reference_rot</P>
+      <P Name="SchemaVersion">1</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="MRRef Source">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Mechanical
+Rotational Reference</P>
+    <P Name="SourceType">Mechanical
+Rotational Reference</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.reference</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariantNames">reference</P>
+      <P Name="ClassName">reference_rot</P>
+      <P Name="SchemaVersion">1</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="MRRef1">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Mechanical
+Rotational Reference</P>
+    <P Name="SourceType">Mechanical
+Rotational Reference</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.reference</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.reference</P>
+      <P Name="ComponentVariantNames">reference</P>
+      <P Name="ClassName">reference_rot</P>
+      <P Name="SchemaVersion">1</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="PS-Simulink&#10;Converter">
+    <P Name="SourceBlock">nesl_utility/PS-Simulink
+Converter</P>
+    <P Name="SourceType">PS-Simulink
+Converter</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">ps_output</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">output</P>
+      <P Name="PseudoPeriodic">off</P>
+      <P Name="Frequencies">[]</P>
+      <P Name="VectorFormat">1-D array</P>
+      <P Name="Unit">1</P>
+      <P Name="AffineConversion">off</P>
+      </InstanceData>
+    <PortProperties>
+      <Port Type="out" Index="1">
+        <P Name="Name">Position Sensor Measurement</P>
+        </Port>
+      </PortProperties>
+    </Block>
+  <Block BlockType="Reference" Name="PS-Simulink&#10;Converter1">
+    <P Name="SourceBlock">nesl_utility/PS-Simulink
+Converter</P>
+    <P Name="SourceType">PS-Simulink
+Converter</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">ps_output</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">output</P>
+      <P Name="PseudoPeriodic">off</P>
+      <P Name="Frequencies">[]</P>
+      <P Name="VectorFormat">1-D array</P>
+      <P Name="Unit">1</P>
+      <P Name="AffineConversion">off</P>
+      </InstanceData>
+    <PortProperties>
+      <Port Type="out" Index="1">
+        <P Name="Name">Position Sensor Measurement Post</P>
+        </Port>
+      </PortProperties>
+    </Block>
+  <Block BlockType="Reference" Name="PS-Simulink&#10;Converter2">
+    <P Name="SourceBlock">nesl_utility/PS-Simulink
+Converter</P>
+    <P Name="SourceType">PS-Simulink
+Converter</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">ps_output</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">output</P>
+      <P Name="PseudoPeriodic">off</P>
+      <P Name="Frequencies">[]</P>
+      <P Name="VectorFormat">1-D array</P>
+      <P Name="Unit">1</P>
+      <P Name="AffineConversion">off</P>
+      </InstanceData>
+    <PortProperties>
+      <Port Type="out" Index="1">
+        <P Name="Name">Speed Sensor Measurement</P>
+        </Port>
+      </PortProperties>
+    </Block>
+  <Block BlockType="Reference" Name="PS-Simulink&#10;Converter3">
+    <P Name="SourceBlock">nesl_utility/PS-Simulink
+Converter</P>
+    <P Name="SourceType">PS-Simulink
+Converter</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">ps_output</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">output</P>
+      <P Name="PseudoPeriodic">off</P>
+      <P Name="Frequencies">[]</P>
+      <P Name="VectorFormat">1-D array</P>
+      <P Name="Unit">1</P>
+      <P Name="AffineConversion">off</P>
+      </InstanceData>
+    <PortProperties>
+      <Port Type="out" Index="1">
+        <P Name="Name">Speed Sensor Measurement Post</P>
+        </Port>
+      </PortProperties>
+    </Block>
+  <Block BlockType="Reference" Name="RefSpeedActuator">
+    <P Name="SourceBlock">MyLib_lib/RefSpeedActuatorWithFault</P>
+    <P Name="SourceType">RefSpeedActuatorWithFault</P>
+    <InstanceData>
+      <P Name="SourceFile">MyLib.RefSpeedActuatorWithFault</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">MyLib.RefSpeedActuatorWithFault</P>
+      <P Name="ComponentVariants">["MyLib.RefSpeedActuatorWithFault"]</P>
+      <P Name="ComponentVariantNames">["RefSpeedActuatorWithFault"]</P>
+      <P Name="ClassName">RefSpeedActuatorWithFault</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="fault_speed_bias">0</P>
+      <P Name="fault_speed_bias_unit">rad/s</P>
+      <P Name="fault_speed_bias_conf">runtime</P>
+      <P Name="fault_drift_rate">0</P>
+      <P Name="fault_drift_rate_unit">rad/s^2</P>
+      <P Name="fault_drift_rate_conf">runtime</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Repeating&#10;Sequence">
+    <P Name="SourceBlock">simulink/Sources/Repeating
+Sequence</P>
+    <P Name="SourceType">Repeating table</P>
+    <InstanceData>
+      <P Name="rep_seq_t">[0 0.98 2 3 4.98 6 7 10]</P>
+      <P Name="rep_seq_y">[0 0 6 6 -6 -6 0 0]</P>
+      </InstanceData>
+    <PortProperties>
+      <Port Type="out" Index="1">
+        <P Name="Name">Speed Drive Signal</P>
+        </Port>
+      </PortProperties>
+    </Block>
+  <Block BlockType="Reference" Name="Rotational&#10;Friction">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Rotational Friction</P>
+    <P Name="SourceType">Rotational Friction</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.friction</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.friction</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.friction</P>
+      <P Name="ComponentVariantNames">friction</P>
+      <P Name="ClassName">friction_rot</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="brkwy_trq">25</P>
+      <P Name="brkwy_trq_unit">m*N</P>
+      <P Name="brkwy_trq_conf">runtime</P>
+      <P Name="brkwy_vel">0.06035</P>
+      <P Name="brkwy_vel_unit">rad/s</P>
+      <P Name="brkwy_vel_conf">runtime</P>
+      <P Name="Col_trq">20</P>
+      <P Name="Col_trq_unit">m*N</P>
+      <P Name="Col_trq_conf">runtime</P>
+      <P Name="visc_coef">0.001</P>
+      <P Name="visc_coef_unit">m*s*N/rad</P>
+      <P Name="visc_coef_conf">runtime</P>
+      <P Name="w_specify">off</P>
+      <P Name="w_priority">High</P>
+      <P Name="w">0</P>
+      <P Name="w_unit">rad/s</P>
+      <P Name="w_nominal_specify">off</P>
+      <P Name="w_nominal_value">1</P>
+      <P Name="w_nominal_unit">rad/s</P>
+      <P Name="t_specify">off</P>
+      <P Name="t_priority">High</P>
+      <P Name="t">0</P>
+      <P Name="t_unit">N*m</P>
+      <P Name="t_nominal_specify">off</P>
+      <P Name="t_nominal_value">1</P>
+      <P Name="t_nominal_unit">N*m</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Rotational Damper">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Rotational Damper</P>
+    <P Name="SourceType">Rotational Damper</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.damper</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.damper</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.damper</P>
+      <P Name="ComponentVariantNames">damper</P>
+      <P Name="ClassName">damper_rot</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="D">0.01</P>
+      <P Name="D_unit">m*s*N/rad</P>
+      <P Name="D_conf">runtime</P>
+      <P Name="w_specify">off</P>
+      <P Name="w_priority">High</P>
+      <P Name="w">0</P>
+      <P Name="w_unit">rad/s</P>
+      <P Name="w_nominal_specify">off</P>
+      <P Name="w_nominal_value">1</P>
+      <P Name="w_nominal_unit">rad/s</P>
+      <P Name="t_specify">off</P>
+      <P Name="t_priority">High</P>
+      <P Name="t">0</P>
+      <P Name="t_unit">N*m</P>
+      <P Name="t_nominal_specify">off</P>
+      <P Name="t_nominal_value">1</P>
+      <P Name="t_nominal_unit">N*m</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Rotational Motion&#10;Sensor Post">
+    <P Name="SourceBlock">MyLib_lib/Rotational Motion
+Sensor with
+measurement faults</P>
+    <P Name="SourceType">Rotational Motion
+Sensor with
+measurement faults</P>
+    <InstanceData>
+      <P Name="SourceFile">MyLib.angular_velocity</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">MyLib.angular_velocity</P>
+      <P Name="ComponentVariants">["MyLib.angular_velocity"]</P>
+      <P Name="ComponentVariantNames">["angular_velocity"]</P>
+      <P Name="ClassName">angular_velocity</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="fault_speed_bias">0</P>
+      <P Name="fault_speed_bias_unit">rad/s</P>
+      <P Name="fault_speed_bias_conf">runtime</P>
+      <P Name="fault_speed_gain">0</P>
+      <P Name="fault_speed_gain_unit">1</P>
+      <P Name="fault_speed_gain_conf">runtime</P>
+      <P Name="fault_drift_rate">0</P>
+      <P Name="fault_drift_rate_unit">rad/s^2</P>
+      <P Name="fault_drift_rate_conf">runtime</P>
+      <P Name="fault_accel_bias">0</P>
+      <P Name="fault_accel_bias_unit">rad/s^2</P>
+      <P Name="fault_accel_bias_conf">runtime</P>
+      <P Name="reference">foundation.enum.MeasurementReference.difference</P>
+      <P Name="reference_unit">1</P>
+      <P Name="reference_conf">compiletime</P>
+      <P Name="acceleration_port">false</P>
+      <P Name="acceleration_port_unit">1</P>
+      <P Name="acceleration_port_conf">compiletime</P>
+      <P Name="velocity_port">true</P>
+      <P Name="velocity_port_unit">1</P>
+      <P Name="velocity_port_conf">compiletime</P>
+      <P Name="position_port">true</P>
+      <P Name="position_port_unit">1</P>
+      <P Name="position_port_conf">compiletime</P>
+      <P Name="wrap_angle">false</P>
+      <P Name="wrap_angle_unit">1</P>
+      <P Name="wrap_angle_conf">compiletime</P>
+      <P Name="offset">0</P>
+      <P Name="offset_unit">rad</P>
+      <P Name="offset_conf">compiletime</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Rotational Motion&#10;Sensor Pre">
+    <P Name="SourceBlock">MyLib_lib/Rotational Motion
+Sensor with
+measurement faults</P>
+    <P Name="SourceType">Rotational Motion
+Sensor with
+measurement faults</P>
+    <InstanceData>
+      <P Name="SourceFile">MyLib.angular_velocity</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">MyLib.angular_velocity</P>
+      <P Name="ComponentVariants">["MyLib.angular_velocity"]</P>
+      <P Name="ComponentVariantNames">["angular_velocity"]</P>
+      <P Name="ClassName">angular_velocity</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="fault_speed_bias">0</P>
+      <P Name="fault_speed_bias_unit">rad/s</P>
+      <P Name="fault_speed_bias_conf">runtime</P>
+      <P Name="fault_speed_gain">0</P>
+      <P Name="fault_speed_gain_unit">1</P>
+      <P Name="fault_speed_gain_conf">runtime</P>
+      <P Name="fault_drift_rate">0</P>
+      <P Name="fault_drift_rate_unit">rad/s^2</P>
+      <P Name="fault_drift_rate_conf">runtime</P>
+      <P Name="fault_accel_bias">0</P>
+      <P Name="fault_accel_bias_unit">rad/s^2</P>
+      <P Name="fault_accel_bias_conf">runtime</P>
+      <P Name="reference">foundation.enum.MeasurementReference.difference</P>
+      <P Name="reference_unit">1</P>
+      <P Name="reference_conf">compiletime</P>
+      <P Name="acceleration_port">false</P>
+      <P Name="acceleration_port_unit">1</P>
+      <P Name="acceleration_port_conf">compiletime</P>
+      <P Name="velocity_port">true</P>
+      <P Name="velocity_port_unit">1</P>
+      <P Name="velocity_port_conf">compiletime</P>
+      <P Name="position_port">true</P>
+      <P Name="position_port_unit">1</P>
+      <P Name="position_port_conf">compiletime</P>
+      <P Name="wrap_angle">false</P>
+      <P Name="wrap_angle_unit">1</P>
+      <P Name="wrap_angle_conf">compiletime</P>
+      <P Name="offset">0</P>
+      <P Name="offset_unit">rad</P>
+      <P Name="offset_conf">compiletime</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Rotational Spring">
+    <P Name="Tag">Factory Generic</P>
+    <P Name="SourceBlock">fl_lib/Mechanical/Rotational Elements/Rotational Spring</P>
+    <P Name="SourceType">Rotational Spring</P>
+    <InstanceData>
+      <P Name="SourceFile">foundation.mechanical.rotational.spring</P>
+      <P Name="SscBlockScalableBuild">off</P>
+      <P Name="ComponentPath">foundation.mechanical.rotational.spring</P>
+      <P Name="ComponentVariants">foundation.mechanical.rotational.spring</P>
+      <P Name="ComponentVariantNames">spring</P>
+      <P Name="ClassName">spring_rot</P>
+      <P Name="SchemaVersion">1</P>
+      <P Name="spr_rate">6.5</P>
+      <P Name="spr_rate_unit">N*m/rad</P>
+      <P Name="spr_rate_conf">runtime</P>
+      <P Name="w_specify">off</P>
+      <P Name="w_priority">High</P>
+      <P Name="w">0</P>
+      <P Name="w_unit">rad/s</P>
+      <P Name="w_nominal_specify">off</P>
+      <P Name="w_nominal_value">1</P>
+      <P Name="w_nominal_unit">rad/s</P>
+      <P Name="t_specify">off</P>
+      <P Name="t_priority">High</P>
+      <P Name="t">0</P>
+      <P Name="t_unit">N*m</P>
+      <P Name="t_nominal_specify">off</P>
+      <P Name="t_nominal_value">1</P>
+      <P Name="t_nominal_unit">N*m</P>
+      <P Name="phi_specify">off</P>
+      <P Name="phi_priority">High</P>
+      <P Name="phi">0</P>
+      <P Name="phi_unit">rad</P>
+      <P Name="phi_nominal_specify">off</P>
+      <P Name="phi_nominal_value">1</P>
+      <P Name="phi_nominal_unit">rad</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Simulink-PS&#10;Converter">
+    <P Name="SourceBlock">nesl_utility/Simulink-PS
+Converter</P>
+    <P Name="SourceType">Simulink-PS
+Converter</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">ps_input</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">output</P>
+      <P Name="PseudoPeriodic">off</P>
+      <P Name="Frequencies">[]</P>
+      <P Name="NoiseDistribution">none</P>
+      <P Name="NoiseParameters">[]</P>
+      <P Name="Unit">1</P>
+      <P Name="AffineConversion">off</P>
+      <P Name="FilteringAndDerivatives">zero</P>
+      <P Name="SimscapeFilterOrder">1</P>
+      <P Name="InputFilterTimeConstant">.001</P>
+      <P Name="UdotUserProvided">[]</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Reference" Name="Solver&#10;Configuration">
+    <P Name="SourceBlock">nesl_utility/Solver
+Configuration</P>
+    <P Name="SourceType">Solver
+Configuration</P>
+    <InstanceData>
+      <P Name="PhysicalDomain">network_engine_domain</P>
+      <P Name="SubClassName">solver</P>
+      <P Name="LeftPortType">input</P>
+      <P Name="RightPortType">generic</P>
+      <P Name="Tones">[]</P>
+      <P Name="Harmonics">[]</P>
+      <P Name="SimulateNoise">off</P>
+      <P Name="Profile">off</P>
+      <P Name="UseLocalSampling">off</P>
+      <P Name="EnableSwitchedLinearOptims">on</P>
+      <P Name="FrequencyDomain">off</P>
+      <P Name="UseCCode">off</P>
+      <P Name="RelTol">0.001</P>
+      <P Name="AbsTol">1e-06</P>
+      <P Name="MinStep">1e-09</P>
+      <P Name="ToWorkspace">off</P>
+      <P Name="RevertToSquareIcSolve">off</P>
+      <P Name="NumHomotopyIterations">100</P>
+      <P Name="PhasorMode">off</P>
+      <P Name="PhasorModeNumHarmonics">1</P>
+      <P Name="ConsistencySolver">NEWTON_XTOL_AFTER_FTOL</P>
+      <P Name="IndexReductionMethod">DerivativeReplacement</P>
+      <P Name="DoDC">off</P>
+      <P Name="ResidualTolerance">1e-9</P>
+      <P Name="ConsistencyTolSource">GLOBAL</P>
+      <P Name="ConsistencyAbsTol">0.001</P>
+      <P Name="ConsistencyRelTol">0.001</P>
+      <P Name="ConsistencyTolFactor">0.001</P>
+      <P Name="UseLocalSolver">off</P>
+      <P Name="LocalSolverChoice">NE_BACKWARD_EULER_ADVANCER</P>
+      <P Name="ResolveIndetEquations">on</P>
+      <P Name="FunctionEvalNumThread">1</P>
+      <P Name="LocalSolverSampleTime">.001</P>
+      <P Name="DoFixedCost">off</P>
+      <P Name="MaxNonlinIter">3</P>
+      <P Name="MaxModeIter">2</P>
+      <P Name="ComputeImpulses">off</P>
+      <P Name="ImpulseIterations">2</P>
+      <P Name="LinearAlgebra">auto</P>
+      <P Name="LinearAlgebraNumThread">0</P>
+      <P Name="EquationFormulation">NE_TIME_EF</P>
+      <P Name="DelaysMemoryBudget">1024</P>
+      <P Name="AutomaticFiltering">on</P>
+      <P Name="FilteringTimeConstant">0.001</P>
+      <P Name="PartitionStorageMethod">AS_NEEDED</P>
+      <P Name="PartitionMemoryBudget">1024</P>
+      <P Name="PartitionMethod">FAST</P>
+      <P Name="MultibodyUseLocalSolver">off</P>
+      <P Name="MultibodyLocalSolverChoice">ODE1</P>
+      <P Name="MultibodyLocalSolverSampleTime">0.001</P>
+      </InstanceData>
+    </Block>
+  <Block BlockType="Terminator" Name="Terminator1">
+    </Block>
+  <Block BlockType="Terminator" Name="Terminator2">
+    </Block>
+  <Block BlockType="Terminator" Name="Terminator3">
+    </Block>
+  <Block BlockType="Terminator" Name="Terminator4">
+    </Block>
+  <Line LineType="Connection">
+    <P Name="Dst">15#rconn:1</P>
+    <Branch>
+      <P Name="Src">12#lconn:1</P>
+      </Branch>
+    <Branch>
+      <P Name="Src">14#rconn:1</P>
+      </Branch>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Dst">10#lconn:1</P>
+    <Branch>
+      <P Name="Src">75#lconn:1</P>
+      </Branch>
+    <Branch>
+      <P Name="Src">13#rconn:1</P>
+      </Branch>
+    <Branch>
+      <Branch>
+        <P Name="Dst">15#lconn:1</P>
+        </Branch>
+      <Branch>
+        <P Name="Dst">14#lconn:1</P>
+        </Branch>
+      </Branch>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Dst">13#lconn:1</P>
+    <Branch>
+      <P Name="Src">71#lconn:1</P>
+      </Branch>
+    <Branch>
+      <P Name="Dst">74#lconn:1</P>
+      </Branch>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">74#rconn:2</P>
+    <P Name="Dst">11#lconn:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">71#rconn:1</P>
+    <P Name="Dst">45#lconn:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">71#rconn:3</P>
+    <P Name="Dst">48#lconn:1</P>
+    </Line>
+  <Line>
+    <P Name="Name">Position Sensor Measurement</P>
+    <P Name="Src">48#out:1</P>
+    <P Name="Dst">51#in:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">75#rconn:3</P>
+    <P Name="Dst">55#lconn:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">75#rconn:1</P>
+    <P Name="Dst">53#lconn:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">75#rconn:2</P>
+    <P Name="Dst">67#lconn:1</P>
+    </Line>
+  <Line>
+    <P Name="Name">Position Sensor Measurement Post</P>
+    <P Name="Src">55#out:1</P>
+    <P Name="Dst">57#in:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">60#rconn:1</P>
+    <Branch>
+      <P Name="Src">74#rconn:1</P>
+      </Branch>
+    <Branch>
+      <P Name="Dst">59#rconn:1</P>
+      </Branch>
+    </Line>
+  <Line>
+    <P Name="Name">Speed Drive Signal</P>
+    <P Name="Src">58#out:1</P>
+    <P Name="Dst">59#in:1</P>
+    </Line>
+  <Line LineType="Connection">
+    <P Name="Src">71#rconn:2</P>
+    <P Name="Dst">64#lconn:1</P>
+    </Line>
+  <Line>
+    <P Name="Name">Speed Sensor Measurement</P>
+    <P Name="Src">64#out:1</P>
+    <P Name="Dst">65#in:1</P>
+    </Line>
+  <Line>
+    <P Name="Name">Speed Sensor Measurement Post</P>
+    <P Name="Src">67#out:1</P>
+    <P Name="Dst">68#in:1</P>
+    </Line>
+  </System>

@@ -283,24 +283,27 @@ def populate_metadata(df_broken, stop_time, seed):
                 }
     return metadata
 
-def generate_data(mle, uST=None, diagram_dir=None,seed=None):
+def generate_data(mle, uST=None, diagram_dir=None,seed=None, raise_on_error=False):
     metadata_dataset = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
     # Inputs
-    sanity_check(uST=uST, metadata_dataset=metadata_dataset)
+    sanity_check(uST=uST, metadata_dataset=metadata_dataset, root_folder=Path("."))
     stop_time = metadata_dataset["time_grid"]["stop_time"]
 
     external_input = generate_time_varying_inputs(root_cause=None, uST=uST, stop_time=stop_time, metadata=metadata_dataset)
     time_varying_parameters, root_cause = generate_time_varying_parameters(mle, uST=uST, stop_time=stop_time, metadata=metadata_dataset)
-    shutil.copy( "simulink_model_original.slx", "simulink_model.slx")
+    shutil.copy("simulink_model_original.slx", "simulink_model.slx")
     print("Running simulation with fault")
-    try:
+    if raise_on_error:
         res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
-    except matlab.engine.MatlabExecutionError as E:
-        print("Matlab Simulation produced an error")
-        print(E)
-        metadata = populate_metadata(df_broken=None,stop_time=stop_time,seed=seed)
-        metadata = {**metadata,**root_cause}
-        return None, metadata
+    else:
+        try:
+            res_broken = run_simulation(mle=mle, uST=uST, stop_time=stop_time, diagram_dir=diagram_dir, time_varying_parameters=time_varying_parameters, external_input=external_input, debug=False)
+        except matlab.engine.MatlabExecutionError as E:
+            print("Matlab Simulation produced an error")
+            print(E)
+            metadata = populate_metadata(df_broken=None,stop_time=stop_time,seed=seed)
+            metadata = {**metadata,**root_cause}
+            return None, metadata
 
     shutil.copy("simulink_model_original.slx", "simulink_model.slx")
     # Make a copy of time_varying_parameters
@@ -373,7 +376,8 @@ available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController", "Mas
     "index",
     type=click.IntRange(0, len(available_scenarios)),
 )
-def main(index):
+@click.option("--raise-on-error/--no-raise-on-error", default=False)
+def main(index, raise_on_error):
     
     root_path = Path("models") / available_scenarios[index]
 
@@ -413,7 +417,7 @@ def main(index):
        
         run_dir = new_run_dir(Path(cwd) / "data", system_name=root_path.name, diagram_subdir= "diagram")
 
-        df, metadata= generate_data(mle, uST=uST, diagram_dir=run_dir / "diagram", seed=i)
+        df, metadata= generate_data(mle, uST=uST, diagram_dir=run_dir / "diagram", seed=i, raise_on_error=raise_on_error)
 
         save_artifacts(run_dir, df, metadata, xml_description)
 

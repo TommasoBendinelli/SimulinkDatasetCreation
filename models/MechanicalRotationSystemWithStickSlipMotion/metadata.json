@@ -18,7 +18,7 @@
     {
       "name": "Rotational Damper (N·m·s/rad)",
       "identifier": "simulink_model_original/Rotational Damper",
-      "key": "d_t",
+      "key": "D",
       "initial_sampling": { "type": "uniform", "min": 0.02, "max": 5.0 }
     },
     {

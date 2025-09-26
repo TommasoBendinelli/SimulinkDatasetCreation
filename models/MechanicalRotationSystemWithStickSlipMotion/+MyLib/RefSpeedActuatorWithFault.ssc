@@ -1,0 +1,51 @@
+component RefSpeedActuatorWithFault
+% RefSpeedActuatorWithFault
+% Ideal angular-velocity source that enforces a relative speed equal to the
+% commanded reference plus optional fault injections (bias and drift).
+%
+% w = (R.w - C.w) = S + fault_speed_bias + fault_drift_rate * time
+%
+% Ports:
+%   R, C  — mechanical rotational conserving ports
+%   S     — physical signal input (commanded angular speed, rad/s)
+%
+% Fault modeling:
+%   fault_speed_bias   — constant speed bias (rad/s)
+%   fault_drift_rate   — linear drift rate (rad/s^2); multiplies simulation time
+%
+% This is still an *ideal* source: it enforces the specified velocity
+% regardless of the torque exerted by the connected network.
+
+parameters
+    fault_speed_bias = { 0, 'rad/s' };   % Constant speed bias to simulate a fault
+    fault_drift_rate = { 0, 'rad/s^2' }; % Linear drift rate to simulate gradual degradation
+end
+
+inputs
+    S = { 0, 'rad/s' }; % S:bottom
+end
+
+nodes
+    C = foundation.mechanical.rotational.rotational; % C:bottom
+    R = foundation.mechanical.rotational.rotational; % R:top
+end
+
+
+variables (Access = protected)
+    w = { 0, 'rad/s' };  % Relative angular velocity (across variable)
+    t = { 0, 'N*m' };    % Torque (through variable)
+end
+
+branches
+    t : R.t -> C.t;
+end
+
+equations
+    % Across variable definition
+    w == R.w - C.w;
+
+    % Enforce ideal source with explicit fault injection
+    w == S + fault_speed_bias + fault_drift_rate * time;
+end
+
+end
