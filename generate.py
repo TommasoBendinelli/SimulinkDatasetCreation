@@ -96,8 +96,7 @@ def save_artifacts(run_dir: Path, df: Optional[pd.DataFrame], metadata: Dict, xm
         json.dump(metadata, f, indent=2)
 
     # Save xml_description
-    # Save xml_description
-    with xml_text.open("w", encoding="utf-8") as f:
+    with open("xml_text.xml", "w", encoding="utf-8") as f:
         f.write(xml_text)
         
 
@@ -366,13 +365,16 @@ def fix_simulink_model_path(target_folder: Path) -> str:
     else:
         breakpoint()
 
+
+available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController", "MassSpringDamperWithPController", "MechanicalRotationSystemWithStickSlipMotion"]
+
 @click.command()
 @click.argument(
     "index",
-    type=click.IntRange(0, 1),
+    type=click.IntRange(0, len(available_scenarios)),
 )
 def main(index):
-    available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController"]
+    
     root_path = Path("models") / available_scenarios[index]
 
     click.echo(f"Using scenario: {available_scenarios[index]} at {root_path}")
@@ -381,8 +383,7 @@ def main(index):
     mle = matlab.engine.start_matlab()
     uST = 0.01 
 
-    available_scenarios = ["BouncingBall", "MassSpringDamperWithPIDController"]
-    root_path = Path("models") / available_scenarios[index]
+
     # adjust name if different
     simulink_path = fix_simulink_model_path(Path("."))
     # Use to read default values

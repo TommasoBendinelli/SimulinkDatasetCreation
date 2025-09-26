@@ -1,6 +1,6 @@
 {
   "context": "We are simulating a 1-DOF rotational drivetrain. An angular-velocity source (driven by a command signal) acts on a shaft with inertia, viscous rotational friction, and a torsional spring–damper to ground. A rotational sensor measures angle and speed. Dynamics depend on inertia J, spring stiffness k_t, damping d_t, viscous friction B, actuator effectiveness, the commanded speed, and possible sensor biases.",
-  "question": "The system behaves normally until a given timestamp, then a fault is injected. Select the correct option from the list.",
+  "question": "The system runs smoothly until a given timestamp, when a fault might be simulated, or nothing unusual may occur. Can you select the correct answer in the list?",
 
   "parameters": [
     {
@@ -57,7 +57,7 @@
     "uST": 0.005,
     "stop_time": 60.0,
     "fault_window": {
-      "start_fraction_range": [45, 70],
+      "start_range": [45, 70],
       "duration_fraction_range": [0.01, 0.1]
     }
   },
