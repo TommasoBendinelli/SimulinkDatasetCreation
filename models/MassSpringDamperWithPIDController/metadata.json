@@ -1,6 +1,6 @@
 {
   "context": "We are simulating a 1-DOF mass–spring–damper system actuated by a force source and regulated by a continuous PID controller. The motion sensor feeds back position to the controller to track a commanded position. Dynamics depend on mass (m), spring stiffness (k), damping (c), actuator effectiveness, sensor bias, and PID gains.",
-    "question": "The system runs smoothly until a given timestamp, then we are simulating a fault in the system. Can you select the correct answer in the list?",
+    "question": "The system runs smoothly until a given timestamp, when a fault might be simulated, or nothing unusual may occur. Can you select the correct answer in the list?",
 
   "parameters": [
     {
